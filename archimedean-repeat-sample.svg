@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <defs>
+    <pattern id="tiling" width="115.882" height="115.882" patternUnits="userSpaceOnUse">
+      <polygon
+        points="115.882,81.941 81.941,115.882 33.941,115.882 0,81.941 0,33.941 33.941,0 81.941,0 115.882,33.941"
+        fill="#eef3f8"
+        stroke="#68788e"
+        stroke-width="2.5"
+        stroke-dasharray="9 6"
+      />
+      <polygon
+        points="0,-33.941 33.941,0 0,33.941 -33.941,0"
+        fill="#f8fafc"
+        stroke="#68788e"
+        stroke-width="2.5"
+        stroke-dasharray="9 6"
+      />
+    </pattern>
+  </defs>
+
+  <rect width="1200" height="720" fill="#f6f8fb" />
+  <text x="34" y="44" fill="#17202a" font-family="Segoe UI, Malgun Gothic, sans-serif" font-size="25" font-weight="800">
+    테셀레이션 무늬 · (4, 8²)
+  </text>
+  <text x="34" y="72" fill="#5d6878" font-family="Segoe UI, Malgun Gothic, sans-serif" font-size="16" font-weight="700">
+    같은 모양이 빈틈없이 이어지는 모습을 관찰해 보세요.
+  </text>
+
+  <rect x="30" y="94" width="1140" height="596" rx="7" fill="url(#tiling)" stroke="#cbd4df" stroke-width="2" />
+
+  <polygon
+    points="695.292,313.705 661.351,347.646 613.351,347.646 579.410,313.705 579.410,265.705 613.351,231.764 661.351,231.764 695.292,265.705"
+    fill="#f76f53"
+    stroke="#17202a"
+    stroke-width="3"
+  />
+  <polygon
+    points="811.174,313.705 777.233,347.646 729.233,347.646 695.292,313.705 695.292,265.705 729.233,231.764 777.233,231.764 811.174,265.705"
+    fill="#4d96ff"
+    stroke="#17202a"
+    stroke-width="3"
+  />
+  <polygon
+    points="695.292,313.705 729.233,347.646 695.292,381.587 661.351,347.646"
+    fill="#ffd166"
+    stroke="#17202a"
+    stroke-width="3"
+  />
+</svg>

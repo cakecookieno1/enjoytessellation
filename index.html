@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>테셀레이션 놀이터</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">초등 수학 체험</p>
+          <h1>테셀레이션 놀이터</h1>
+        </div>
+        <div class="score-strip" aria-live="polite">
+          <span id="tileCount">0</span>
+          <small id="scoreLabel">배치한 도형</small>
+        </div>
+      </header>
+
+      <section class="workspace" aria-label="테셀레이션 만들기">
+        <aside class="panel tools-panel">
+          <div class="mode-switch" role="tablist" aria-label="활동 모드">
+            <button class="mode-button active" data-mode="free" role="tab" aria-selected="true">자유</button>
+            <button class="mode-button" data-mode="template" role="tab" aria-selected="false">도안</button>
+            <button class="mode-button" data-mode="decorate" role="tab" aria-selected="false">꾸미기</button>
+          </div>
+
+          <div id="templatePanel" class="panel-section template-panel" hidden>
+            <h2>아르키메데스 도안</h2>
+            <div class="template-picker" role="group" aria-label="도안 선택">
+              <button class="template-button active" data-template="t31212">
+                <span>(3, 12²)</span>
+                <small>3조각</small>
+              </button>
+              <button class="template-button" data-template="t4612">
+                <span>(4, 6, 12)</span>
+                <small>3조각</small>
+              </button>
+              <button class="template-button" data-template="t488">
+                <span>(4, 8²)</span>
+                <small>3조각</small>
+              </button>
+              <button class="template-button" data-template="t3464">
+                <span>(3, 4, 6, 4)</span>
+                <small>4조각</small>
+              </button>
+              <button class="template-button" data-template="t3636">
+                <span>(3, 6, 3, 6)</span>
+                <small>4조각</small>
+              </button>
+              <button class="template-button" data-template="t33336">
+                <span>(3⁴, 6)</span>
+                <small>5조각</small>
+              </button>
+              <button class="template-button" data-template="t33434">
+                <span>(3², 4, 3, 4)</span>
+                <small>5조각</small>
+              </button>
+              <button class="template-button" data-template="t33344">
+                <span>(3³, 4²)</span>
+                <small>5조각</small>
+              </button>
+            </div>
+          </div>
+
+          <div id="decoratePanel" class="panel-section decorate-panel" hidden>
+            <h2>꾸밀 물건</h2>
+            <div class="object-picker" role="group" aria-label="꾸밀 물건 선택">
+              <button class="object-button active" data-object="clock">
+                <span class="object-icon clock-object-icon"></span>
+                <span>시계</span>
+              </button>
+              <button class="object-button" data-object="suitcase">
+                <span class="object-icon suitcase-object-icon"></span>
+                <span>캐리어</span>
+              </button>
+              <button class="object-button" data-object="window">
+                <span class="object-icon window-object-icon"></span>
+                <span>창문</span>
+              </button>
+            </div>
+            <label class="object-size-control">
+              <span>물건 크기</span>
+              <input id="objectSizeRange" type="range" min="115" max="300" step="5" value="115" />
+              <output id="objectSizeLabel">115%</output>
+            </label>
+          </div>
+
+          <div class="panel-section">
+            <h2>도형 고르기</h2>
+            <p class="tool-note">도형을 고르면 아래에 색깔별 도형이 나타납니다.</p>
+            <div class="segmented" role="group" aria-label="도형 선택">
+              <button class="shape-button active" data-shape="triangle" aria-pressed="true">
+                <span class="shape-icon triangle-icon"></span>
+                정삼각형
+              </button>
+              <button class="shape-button" data-shape="square" aria-pressed="false">
+                <span class="shape-icon square-icon"></span>
+                정사각형
+              </button>
+              <button class="shape-button" data-shape="hexagon" aria-pressed="false">
+                <span class="shape-icon hexagon-icon"></span>
+                정육각형
+              </button>
+              <button class="shape-button" data-shape="octagon" aria-pressed="false">
+                <span class="shape-icon octagon-icon"></span>
+                정팔각형
+              </button>
+              <button class="shape-button" data-shape="dodecagon" aria-pressed="false">
+                <span class="shape-icon dodecagon-icon"></span>
+                정십이각형
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-section">
+            <h2>색깔 도형</h2>
+            <p id="paletteHint" class="tool-note">원하는 색의 도형을 작업판으로 끌어오세요.</p>
+            <div id="paletteTray" class="palette-tray" aria-label="색깔 도형 팔레트"></div>
+          </div>
+
+          <div class="panel-section compact-actions">
+            <button id="undoButton" class="command-button ghost">되돌리기</button>
+            <button id="clearButton" class="command-button ghost">비우기</button>
+          </div>
+        </aside>
+
+        <section class="board-area">
+          <div class="board-header">
+            <div>
+              <h2 id="boardTitle">같은 길이의 변으로 붙이기</h2>
+              <p id="boardHint">가운데를 잡으면 이동하고, 꼭짓점을 잡으면 회전합니다.</p>
+            </div>
+            <div class="board-actions">
+              <span id="templateStatus" class="template-status" hidden></span>
+              <button id="completeButton" class="command-button complete-button" hidden>완성</button>
+              <button id="downloadButton" class="command-button save-button" title="PNG로 저장">PNG 저장</button>
+            </div>
+          </div>
+          <svg id="tessellationBoard" class="board" role="application" aria-label="테셀레이션 작업판">
+            <defs>
+              <clipPath id="decorateClip" clipPathUnits="userSpaceOnUse"></clipPath>
+            </defs>
+            <g id="viewportLayer">
+              <g id="templateLayer"></g>
+              <g id="tileLayer"></g>
+              <g id="objectLayer"></g>
+            </g>
+          </svg>
+          <div class="viewport-controls" aria-label="화면 보기 조절">
+            <button id="rotateViewButton" class="viewport-button" type="button" title="화면 90도 회전" aria-label="화면 90도 회전">↻</button>
+            <button id="zoomOutButton" class="viewport-button" type="button" title="화면 축소" aria-label="화면 축소">−</button>
+            <span id="zoomLabel" class="zoom-label">100%</span>
+            <button id="zoomInButton" class="viewport-button" type="button" title="화면 확대" aria-label="화면 확대">+</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
