@@ -1395,7 +1395,7 @@ function addExportStyles(clone) {
     .object-guide { fill: none; stroke: #8b98aa; stroke-width: 2.5; stroke-dasharray: 9 7; vector-effect: non-scaling-stroke; }
     .object-detail { fill: none; stroke: #17202a; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
     .object-detail.thin { stroke-width: 3; }
-    .clock-number { fill: #17202a; font: 900 24px Arial, sans-serif; text-anchor: middle; }
+    .clock-number { fill: #17202a; font: 900 24px "A2Z", Arial, sans-serif; text-anchor: middle; }
   `;
   clone.querySelector("defs")?.appendChild(style);
 }

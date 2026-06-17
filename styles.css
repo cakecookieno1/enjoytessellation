@@ -1,3 +1,75 @@
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-Thin.woff2") format("woff2");
+  font-weight: 100;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-ExtraLight.woff2") format("woff2");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-ExtraBold.woff2") format("woff2");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "A2Z";
+  src: url("./assets/fonts/A2Z-Black.woff2") format("woff2");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --ink: #17202a;
   --muted: #5d6878;
@@ -23,7 +95,7 @@ body {
     linear-gradient(135deg, rgba(247, 111, 83, 0.14), transparent 28%),
     linear-gradient(315deg, rgba(6, 167, 125, 0.12), transparent 30%),
     var(--paper);
-  font-family: "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+  font-family: "A2Z", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
 }
 
 button,
