@@ -136,7 +136,8 @@
             <div class="board-actions">
               <span id="templateStatus" class="template-status" hidden></span>
               <button id="completeButton" class="command-button complete-button" hidden>완성</button>
-              <button id="downloadButton" class="command-button save-button" title="PNG로 저장">PNG 저장</button>
+              <button id="groupMoveButton" class="command-button group-move-button" type="button" title="묶어서 옮기기" aria-pressed="false">묶음 이동</button>
+              <button id="downloadButton" class="command-button save-button" title="PNG로 저장">저장</button>
             </div>
           </div>
           <svg id="tessellationBoard" class="board" role="application" aria-label="테셀레이션 작업판">
@@ -159,6 +160,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260617-workspace"></script>
+    <script src="./app.js?v=20260617-groupmove"></script>
   </body>
 </html>

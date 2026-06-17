@@ -478,8 +478,18 @@ input[type="range"] {
   font-weight: 700;
 }
 
-.save-button {
+.save-button,
+.group-move-button {
   min-width: 78px;
+}
+
+.group-move-button {
+  background: #fff;
+}
+
+.group-move-button.active {
+  background: #8e5cf7;
+  color: #fff;
 }
 
 .complete-button {
@@ -577,6 +587,11 @@ input[type="range"] {
 .tile-group.template-snapped .tile {
   stroke: var(--mint);
   stroke-width: 5;
+}
+
+.tile-group.group-moving .tile {
+  stroke: #8e5cf7;
+  stroke-width: 4;
 }
 
 .tile-group.overlap-warning {

@@ -19,6 +19,7 @@ const boardTitle = document.querySelector("#boardTitle");
 const boardHint = document.querySelector("#boardHint");
 const zoomLabel = document.querySelector("#zoomLabel");
 const downloadButton = document.querySelector("#downloadButton");
+const groupMoveButton = document.querySelector("#groupMoveButton");
 
 const shapeButtons = [...document.querySelectorAll(".shape-button")];
 const modeButtons = [...document.querySelectorAll(".mode-button")];
@@ -34,6 +35,8 @@ const HANDLE_RADIUS = 4.5;
 const LONG_PRESS_MS = 650;
 const LONG_PRESS_MOVE_LIMIT = 8;
 const BOARD_BOUNDS = { minX: 40, minY: 40, maxX: 780, maxY: 580 };
+const GROUP_EDGE_DISTANCE = 6;
+const GROUP_EDGE_ANGLE_TOLERANCE = 0.16;
 const palette = ["#f76f53", "#ffd166", "#06a77d", "#4d96ff", "#8e5cf7", "#ffffff"];
 
 const shapeSides = {
@@ -95,6 +98,7 @@ let undoStack = [];
 let viewScale = 1;
 let viewRotation = 0;
 let objectScale = 1.15;
+let groupMoveEnabled = false;
 
 board.setAttribute("viewBox", "0 0 820 620");
 applyViewportTransform();
@@ -573,6 +577,19 @@ function rotateView() {
   applyViewportTransform();
 }
 
+function updateGroupMoveButton() {
+  if (activeMode === "decorate" && decorateComplete) groupMoveEnabled = false;
+  groupMoveButton.classList.toggle("active", groupMoveEnabled);
+  groupMoveButton.setAttribute("aria-pressed", groupMoveEnabled ? "true" : "false");
+  groupMoveButton.disabled = activeMode === "decorate" && decorateComplete;
+}
+
+function toggleGroupMove() {
+  if (activeMode === "decorate" && decorateComplete) return;
+  groupMoveEnabled = !groupMoveEnabled;
+  updateGroupMoveButton();
+}
+
 function startPaletteDrag(event, color) {
   if (activeMode === "decorate" && decorateComplete) return;
   event.preventDefault();
@@ -585,6 +602,11 @@ function startPaletteDrag(event, color) {
   dragState = {
     mode: "move",
     tile,
+    groupTiles: [tile],
+    startPositions: [{
+      tile,
+      position: { ...tile.position },
+    }],
     offset: { x: 0, y: 0 },
     before,
     startClient: { x: event.clientX, y: event.clientY },
@@ -616,17 +638,40 @@ function releaseTemplateSlot(tile) {
   updateStats();
 }
 
+function releaseTemplateSlots(groupTiles) {
+  let released = false;
+  groupTiles.forEach((tile) => {
+    if (!tile.slotId) return;
+    tile.slotId = null;
+    released = true;
+  });
+
+  if (released) {
+    renderTemplate();
+    updateStats();
+  }
+}
+
 function startMoveDrag(event, tile) {
   if (activeMode === "decorate" && decorateComplete) return;
   event.preventDefault();
   selectTile(tile);
   const before = captureState();
-  releaseTemplateSlot(tile);
+  const groupTiles = groupMoveEnabled ? getConnectedTiles(tile) : [tile];
+  releaseTemplateSlots(groupTiles);
   const point = getBoardPoint(event);
+  groupTiles.forEach((groupTile) => {
+    groupTile.group.classList.toggle("group-moving", groupTiles.length > 1);
+  });
   tile.group.classList.add("dragging");
   dragState = {
     mode: "move",
     tile,
+    groupTiles,
+    startPositions: groupTiles.map((groupTile) => ({
+      tile: groupTile,
+      position: { ...groupTile.position },
+    })),
     offset: { x: point.x - tile.position.x, y: point.y - tile.position.y },
     before,
     startClient: { x: event.clientX, y: event.clientY },
@@ -680,12 +725,49 @@ function moveDrag(event) {
     return;
   }
 
-  dragState.tile.position = keepInsideBoard({
+  const startPosition = dragState.startPositions.find((item) => item.tile === dragState.tile).position;
+  const targetPosition = keepInsideBoard({
     x: point.x - dragState.offset.x,
     y: point.y - dragState.offset.y,
   });
-  updateTile(dragState.tile);
+  const rawDelta = {
+    x: targetPosition.x - startPosition.x,
+    y: targetPosition.y - startPosition.y,
+  };
+  const delta = clampGroupDelta(dragState.startPositions, rawDelta);
+  dragState.startPositions.forEach((item) => {
+    item.tile.position = {
+      x: item.position.x + delta.x,
+      y: item.position.y + delta.y,
+    };
+    updateTile(item.tile);
+  });
   updateOverlapWarnings();
+}
+
+function getActiveDragTiles() {
+  if (!dragState) return [];
+  return dragState.groupTiles ?? [dragState.tile];
+}
+
+function clampGroupDelta(startPositions, rawDelta) {
+  const bounds = getWorkspaceBounds();
+  let minX = -Infinity;
+  let maxX = Infinity;
+  let minY = -Infinity;
+  let maxY = Infinity;
+
+  startPositions.forEach((item) => {
+    minX = Math.max(minX, bounds.minX - item.position.x);
+    maxX = Math.min(maxX, bounds.maxX - item.position.x);
+    minY = Math.max(minY, bounds.minY - item.position.y);
+    maxY = Math.min(maxY, bounds.maxY - item.position.y);
+  });
+
+  return {
+    x: Math.max(minX, Math.min(maxX, rawDelta.x)),
+    y: Math.max(minY, Math.min(maxY, rawDelta.y)),
+  };
 }
 
 function endDrag(event) {
@@ -694,7 +776,9 @@ function endDrag(event) {
   const before = dragState.before;
   clearLongPressTimer();
 
-  if (mode === "move") {
+  const isGroupMove = mode === "move" && dragState.groupTiles?.length > 1;
+
+  if (mode === "move" && !isGroupMove) {
     const templateSnap = findTemplateSnap(tile);
     const edgeSnap = templateSnap ? null : findSnap(tile);
 
@@ -717,12 +801,12 @@ function endDrag(event) {
   if (
     tile.group.isConnected
     && activeMode === "decorate"
-    && !isPointInsideDecorativeArea(tile.position)
+    && !getActiveDragTiles().every((dragTile) => isPointInsideDecorativeArea(dragTile.position))
   ) {
-    restoreDraggedTile(tile, before);
+    restoreDraggedTiles(before);
   }
 
-  if (tile.group.isConnected && tileOverlapsOthers(tile)) {
+  if (!isGroupMove && tile.group.isConnected && tileOverlapsOthers(tile)) {
     const autoFit = findAutoFit(tile);
     if (autoFit) {
       tile.position = autoFit.position;
@@ -735,7 +819,7 @@ function endDrag(event) {
 
   if (tile.group.isConnected) {
     tile.group.classList.remove("dragging", "rotating");
-    updateTile(tile);
+    getActiveDragTiles().forEach(updateTile);
   }
   pushUndoIfChanged(before);
   renderTemplate();
@@ -805,6 +889,7 @@ function cleanupDragState() {
   if (dragState?.tile?.group) {
     dragState.tile.group.classList.remove("dragging", "rotating");
   }
+  dragState?.groupTiles?.forEach((tile) => tile.group.classList.remove("group-moving"));
   clearLongPressTimer();
   dragState = null;
   document.removeEventListener("pointermove", moveDrag);
@@ -892,6 +977,43 @@ function tileOverlapsOthers(tile) {
   });
 }
 
+function edgesAreJoined(edgeA, edgeB) {
+  const directionGap = angleDifference(edgeA.angle, edgeB.angle);
+  if (directionGap > GROUP_EDGE_ANGLE_TOLERANCE) return false;
+
+  return Math.hypot(
+    edgeA.midpoint.x - edgeB.midpoint.x,
+    edgeA.midpoint.y - edgeB.midpoint.y,
+  ) <= GROUP_EDGE_DISTANCE;
+}
+
+function tilesAreConnected(tile, other) {
+  const tilePoints = worldPoints(tile);
+  const otherPoints = worldPoints(other);
+  if (boundsOverlap(polygonBounds(tilePoints), polygonBounds(otherPoints)) && polygonsOverlap(tilePoints, otherPoints)) {
+    return false;
+  }
+
+  return edgesFor(tile).some((edge) => edgesFor(other).some((otherEdge) => edgesAreJoined(edge, otherEdge)));
+}
+
+function getConnectedTiles(startTile) {
+  const connected = new Set([startTile]);
+  const queue = [startTile];
+
+  while (queue.length) {
+    const tile = queue.shift();
+    tiles.forEach((candidate) => {
+      if (connected.has(candidate)) return;
+      if (!tilesAreConnected(tile, candidate)) return;
+      connected.add(candidate);
+      queue.push(candidate);
+    });
+  }
+
+  return [...connected];
+}
+
 function updateOverlapWarnings() {
   tiles.forEach((tile) => tile.group.classList.remove("overlap-warning"));
   const geometry = new Map(tiles.map((tile) => {
@@ -977,6 +1099,10 @@ function restoreDraggedTile(tile, snapshot) {
   tile.rotation = previous.rotation;
   tile.slotId = previous.slotId;
   updateTile(tile);
+}
+
+function restoreDraggedTiles(snapshot) {
+  getActiveDragTiles().forEach((tile) => restoreDraggedTile(tile, snapshot));
 }
 
 function captureState() {
@@ -1187,6 +1313,7 @@ function setMode(mode) {
   renderTemplate();
   renderDecorativeObject();
   updateStats();
+  updateGroupMoveButton();
 }
 
 function setTemplate(templateId) {
@@ -1235,6 +1362,7 @@ function toggleDecorateComplete() {
   renderDecorativeObject();
   updateStats();
   updateUndoButton();
+  updateGroupMoveButton();
 }
 
 function getExportTransform() {
@@ -1357,6 +1485,7 @@ objectSizeRange.addEventListener("input", () => {
 document.querySelector("#undoButton").addEventListener("click", undoLastAction);
 clearButton.addEventListener("click", clearBoard);
 downloadButton.addEventListener("click", downloadPng);
+groupMoveButton.addEventListener("click", toggleGroupMove);
 completeButton.addEventListener("click", toggleDecorateComplete);
 document.querySelector("#rotateViewButton").addEventListener("click", rotateView);
 document.querySelector("#zoomOutButton").addEventListener("click", () => changeZoom(-0.15));
@@ -1367,6 +1496,7 @@ renderTemplate();
 renderDecorativeObject();
 updateStats();
 updateUndoButton();
+updateGroupMoveButton();
 
 const initialParams = new URLSearchParams(window.location.search);
 const initialTemplate = initialParams.get("template");
