@@ -33,6 +33,7 @@ const TEMPLATE_ROTATION_TOLERANCE = 4;
 const HANDLE_RADIUS = 4.5;
 const LONG_PRESS_MS = 650;
 const LONG_PRESS_MOVE_LIMIT = 8;
+const BOARD_BOUNDS = { minX: 40, minY: 40, maxX: 780, maxY: 580 };
 const palette = ["#f76f53", "#ffd166", "#06a77d", "#4d96ff", "#8e5cf7", "#ffffff"];
 
 const shapeSides = {
@@ -333,6 +334,33 @@ function createDecorativeBoundary(objectId, className = "") {
 
 function objectScaleTransform() {
   return `translate(410 310) scale(${objectScale}) translate(-410 -310)`;
+}
+
+function baseDecorativeBounds(objectId) {
+  if (objectId === "clock") return { minX: 158, minY: 58, maxX: 662, maxY: 562 };
+  if (objectId === "suitcase") return { minX: 180, minY: 100, maxX: 640, maxY: 530 };
+  return { minX: 200, minY: 90, maxX: 620, maxY: 560 };
+}
+
+function scaleBoundsFromCenter(bounds, scale) {
+  const center = { x: 410, y: 310 };
+  return {
+    minX: center.x + (bounds.minX - center.x) * scale,
+    minY: center.y + (bounds.minY - center.y) * scale,
+    maxX: center.x + (bounds.maxX - center.x) * scale,
+    maxY: center.y + (bounds.maxY - center.y) * scale,
+  };
+}
+
+function getWorkspaceBounds() {
+  if (activeMode !== "decorate") return BOARD_BOUNDS;
+  const objectBounds = scaleBoundsFromCenter(baseDecorativeBounds(activeObjectId), objectScale);
+  return {
+    minX: Math.min(BOARD_BOUNDS.minX, objectBounds.minX),
+    minY: Math.min(BOARD_BOUNDS.minY, objectBounds.minY),
+    maxX: Math.max(BOARD_BOUNDS.maxX, objectBounds.maxX),
+    maxY: Math.max(BOARD_BOUNDS.maxY, objectBounds.maxY),
+  };
 }
 
 function appendObjectLine(x1, y1, x2, y2, className = "object-detail") {
@@ -785,14 +813,22 @@ function cleanupDragState() {
 }
 
 function keepInsideBoard(position) {
+  const bounds = getWorkspaceBounds();
   return {
-    x: Math.max(40, Math.min(780, position.x)),
-    y: Math.max(40, Math.min(580, position.y)),
+    x: Math.max(bounds.minX, Math.min(bounds.maxX, position.x)),
+    y: Math.max(bounds.minY, Math.min(bounds.maxY, position.y)),
   };
 }
 
 function isMostlyInside(tile) {
-  return worldPoints(tile).some((point) => point.x > 0 && point.x < 820 && point.y > 0 && point.y < 620);
+  const bounds = getWorkspaceBounds();
+  const margin = SIDE * 2;
+  return worldPoints(tile).some((point) => (
+    point.x > bounds.minX - margin
+    && point.x < bounds.maxX + margin
+    && point.y > bounds.minY - margin
+    && point.y < bounds.maxY + margin
+  ));
 }
 
 function removeTile(tile) {
@@ -804,6 +840,26 @@ function removeTile(tile) {
 function projectPolygon(points, axis) {
   const values = points.map((point) => point.x * axis.x + point.y * axis.y);
   return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+function polygonBounds(points) {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  return {
+    minX: Math.min(...xs),
+    minY: Math.min(...ys),
+    maxX: Math.max(...xs),
+    maxY: Math.max(...ys),
+  };
+}
+
+function boundsOverlap(boundsA, boundsB) {
+  return !(
+    boundsA.maxX < boundsB.minX
+    || boundsB.maxX < boundsA.minX
+    || boundsA.maxY < boundsB.minY
+    || boundsB.maxY < boundsA.minY
+  );
 }
 
 function polygonsOverlap(pointsA, pointsB) {
@@ -828,17 +884,29 @@ function polygonsOverlap(pointsA, pointsB) {
 
 function tileOverlapsOthers(tile) {
   const points = worldPoints(tile);
-  return tiles.some((other) => other !== tile && polygonsOverlap(points, worldPoints(other)));
+  const bounds = polygonBounds(points);
+  return tiles.some((other) => {
+    if (other === tile) return false;
+    const otherPoints = worldPoints(other);
+    return boundsOverlap(bounds, polygonBounds(otherPoints)) && polygonsOverlap(points, otherPoints);
+  });
 }
 
 function updateOverlapWarnings() {
   tiles.forEach((tile) => tile.group.classList.remove("overlap-warning"));
+  const geometry = new Map(tiles.map((tile) => {
+    const points = worldPoints(tile);
+    return [tile, { points, bounds: polygonBounds(points) }];
+  }));
 
   for (let firstIndex = 0; firstIndex < tiles.length; firstIndex += 1) {
     for (let secondIndex = firstIndex + 1; secondIndex < tiles.length; secondIndex += 1) {
       const first = tiles[firstIndex];
       const second = tiles[secondIndex];
-      if (!polygonsOverlap(worldPoints(first), worldPoints(second))) continue;
+      const firstGeometry = geometry.get(first);
+      const secondGeometry = geometry.get(second);
+      if (!boundsOverlap(firstGeometry.bounds, secondGeometry.bounds)) continue;
+      if (!polygonsOverlap(firstGeometry.points, secondGeometry.points)) continue;
       first.group.classList.add("overlap-warning");
       second.group.classList.add("overlap-warning");
     }
@@ -1078,8 +1146,15 @@ function updateShapeAvailability() {
   }
 }
 
+function confirmResetIfNeeded(nextName) {
+  if (!tiles.length) return true;
+  return window.confirm(`지금 만든 도형이 지워져요.\n${nextName}로 바꿀까요?`);
+}
+
 function setMode(mode) {
   if (activeMode === mode) return;
+  const modeName = { free: "자유", template: "도안", decorate: "꾸미기" }[mode];
+  if (!confirmResetIfNeeded(modeName)) return;
   activeMode = mode;
   resetBoardState();
   templatePanel.hidden = mode !== "template";
@@ -1116,6 +1191,7 @@ function setMode(mode) {
 
 function setTemplate(templateId) {
   if (activeTemplateId === templateId && activeMode === "template") return;
+  if (!confirmResetIfNeeded("다른 도안")) return;
   activeTemplateId = templateId;
   resetBoardState();
   templateButtons.forEach((button) => {
@@ -1129,6 +1205,7 @@ function setTemplate(templateId) {
 
 function setDecorativeObject(objectId) {
   if (activeObjectId === objectId && activeMode === "decorate") return;
+  if (!confirmResetIfNeeded(decorateObjects[objectId].name)) return;
   activeObjectId = objectId;
   objectScale = 1.15;
   objectSizeRange.value = "115";
