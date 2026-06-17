@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>테셀레이션 놀이터</title>
-    <link rel="stylesheet" href="./styles.css?v=20260617-a2z" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-pan" />
   </head>
   <body>
     <main class="app-shell">
@@ -117,7 +117,6 @@
 
           <div class="panel-section">
             <h2>색깔 도형</h2>
-            <p id="paletteHint" class="tool-note">원하는 색의 도형을 작업판으로 끌어오세요.</p>
             <div id="paletteTray" class="palette-tray" aria-label="색깔 도형 팔레트"></div>
           </div>
 
@@ -131,13 +130,19 @@
           <div class="board-header">
             <div>
               <h2 id="boardTitle">같은 길이의 변으로 붙이기</h2>
-              <p id="boardHint">가운데를 잡으면 이동하고, 꼭짓점을 잡으면 회전합니다.</p>
+              <p id="boardHint">빈 곳: 화면 이동 · 도형: 이동/회전</p>
             </div>
             <div class="board-actions">
               <span id="templateStatus" class="template-status" hidden></span>
               <button id="completeButton" class="command-button complete-button" hidden>완성</button>
               <button id="groupMoveButton" class="command-button group-move-button" type="button" title="묶어서 옮기기" aria-pressed="false">묶음 이동</button>
               <button id="downloadButton" class="command-button save-button" title="PNG로 저장">저장</button>
+              <div class="viewport-controls" aria-label="화면 보기 조절">
+                <button id="rotateViewButton" class="viewport-button" type="button" title="화면 90도 회전" aria-label="화면 90도 회전">↻</button>
+                <button id="zoomOutButton" class="viewport-button" type="button" title="화면 축소" aria-label="화면 축소">−</button>
+                <span id="zoomLabel" class="zoom-label">100%</span>
+                <button id="zoomInButton" class="viewport-button" type="button" title="화면 확대" aria-label="화면 확대">+</button>
+              </div>
             </div>
           </div>
           <svg id="tessellationBoard" class="board" role="application" aria-label="테셀레이션 작업판">
@@ -150,16 +155,21 @@
               <g id="objectLayer"></g>
             </g>
           </svg>
-          <div class="viewport-controls" aria-label="화면 보기 조절">
-            <button id="rotateViewButton" class="viewport-button" type="button" title="화면 90도 회전" aria-label="화면 90도 회전">↻</button>
-            <button id="zoomOutButton" class="viewport-button" type="button" title="화면 축소" aria-label="화면 축소">−</button>
-            <span id="zoomLabel" class="zoom-label">100%</span>
-            <button id="zoomInButton" class="viewport-button" type="button" title="화면 확대" aria-label="화면 확대">+</button>
-          </div>
         </section>
       </section>
     </main>
 
-    <script src="./app.js?v=20260617-a2z"></script>
+    <div id="guideOverlay" class="guide-overlay" hidden>
+      <div id="guideSpotlight" class="guide-spotlight"></div>
+      <div id="guideBubble" class="guide-bubble" role="dialog" aria-label="처음 안내">
+        <p id="guideText"></p>
+        <div class="guide-actions">
+          <button id="guideSkipButton" class="guide-button ghost" type="button">닫기</button>
+          <button id="guideNextButton" class="guide-button" type="button">다음</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./app.js?v=20260618-pan"></script>
   </body>
 </html>

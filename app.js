@@ -20,6 +20,12 @@ const boardHint = document.querySelector("#boardHint");
 const zoomLabel = document.querySelector("#zoomLabel");
 const downloadButton = document.querySelector("#downloadButton");
 const groupMoveButton = document.querySelector("#groupMoveButton");
+const guideOverlay = document.querySelector("#guideOverlay");
+const guideSpotlight = document.querySelector("#guideSpotlight");
+const guideBubble = document.querySelector("#guideBubble");
+const guideText = document.querySelector("#guideText");
+const guideNextButton = document.querySelector("#guideNextButton");
+const guideSkipButton = document.querySelector("#guideSkipButton");
 
 const shapeButtons = [...document.querySelectorAll(".shape-button")];
 const modeButtons = [...document.querySelectorAll(".mode-button")];
@@ -37,7 +43,15 @@ const LONG_PRESS_MOVE_LIMIT = 8;
 const BOARD_BOUNDS = { minX: 40, minY: 40, maxX: 780, maxY: 580 };
 const GROUP_EDGE_DISTANCE = 6;
 const GROUP_EDGE_ANGLE_TOLERANCE = 0.16;
+const GUIDE_STORAGE_KEY = "tessellationGuideSeen";
 const palette = ["#f76f53", "#ffd166", "#06a77d", "#4d96ff", "#8e5cf7", "#ffffff"];
+
+const guideSteps = [
+  { selector: '.mode-button[data-mode="free"]', text: "자유롭게 도형을 붙여볼 수 있어요." },
+  { selector: ".shape-button.active", text: "도형을 고르면 아래에 색깔 도형이 나와요." },
+  { selector: "#tessellationBoard", text: "빈 곳을 끌면 화면이 움직이고, 도형 꼭짓점은 회전해요." },
+  { selector: ".viewport-controls", text: "화면을 돌리거나 크게 볼 수 있어요." },
+];
 
 const shapeSides = {
   triangle: 3,
@@ -97,8 +111,10 @@ let selectedTile = null;
 let undoStack = [];
 let viewScale = 1;
 let viewRotation = 0;
+let viewOffset = { x: 0, y: 0 };
 let objectScale = 1.15;
 let groupMoveEnabled = false;
+let guideStepIndex = 0;
 
 board.setAttribute("viewBox", "0 0 820 620");
 applyViewportTransform();
@@ -534,6 +550,7 @@ function updateTile(tile) {
 
 function selectTile(tile) {
   if (activeMode === "decorate" && decorateComplete) return;
+  if (selectedShape !== tile.shape) selectShape(tile.shape);
   selectedTile = tile;
   tileLayer.appendChild(tile.group);
   tiles.forEach((item) => {
@@ -542,15 +559,19 @@ function selectTile(tile) {
   });
 }
 
-function getBoardPoint(event) {
+function getSvgPoint(event) {
   const point = board.createSVGPoint();
   point.x = event.clientX;
   point.y = event.clientY;
-  const boardPoint = point.matrixTransform(board.getScreenCTM().inverse());
+  return point.matrixTransform(board.getScreenCTM().inverse());
+}
+
+function getBoardPoint(event) {
+  const boardPoint = getSvgPoint(event);
   const center = { x: 410, y: 310 };
   const scaled = {
-    x: (boardPoint.x - center.x) / viewScale,
-    y: (boardPoint.y - center.y) / viewScale,
+    x: (boardPoint.x - center.x - viewOffset.x) / viewScale,
+    y: (boardPoint.y - center.y - viewOffset.y) / viewScale,
   };
   const unrotated = rotatePoint(scaled, -viewRotation);
   return {
@@ -562,7 +583,7 @@ function getBoardPoint(event) {
 function applyViewportTransform() {
   viewportLayer.setAttribute(
     "transform",
-    `translate(410 310) scale(${viewScale}) rotate(${viewRotation}) translate(-410 -310)`,
+    `translate(${410 + viewOffset.x} ${310 + viewOffset.y}) scale(${viewScale}) rotate(${viewRotation}) translate(-410 -310)`,
   );
   zoomLabel.textContent = `${Math.round(viewScale * 100)}%`;
 }
@@ -580,6 +601,8 @@ function rotateView() {
 function updateGroupMoveButton() {
   if (activeMode === "decorate" && decorateComplete) groupMoveEnabled = false;
   groupMoveButton.classList.toggle("active", groupMoveEnabled);
+  groupMoveButton.textContent = groupMoveEnabled ? "묶음 이동 해제" : "묶음 이동";
+  groupMoveButton.title = groupMoveEnabled ? "묶음 이동 끄기" : "붙어있는 도형 함께 옮기기";
   groupMoveButton.setAttribute("aria-pressed", groupMoveEnabled ? "true" : "false");
   groupMoveButton.disabled = activeMode === "decorate" && decorateComplete;
 }
@@ -588,6 +611,94 @@ function toggleGroupMove() {
   if (activeMode === "decorate" && decorateComplete) return;
   groupMoveEnabled = !groupMoveEnabled;
   updateGroupMoveButton();
+}
+
+function startPanDrag(event) {
+  if (event.button !== undefined && event.button !== 0) return;
+  if (event.target !== board) return;
+  event.preventDefault();
+  dragState = {
+    mode: "pan",
+    startClient: { x: event.clientX, y: event.clientY },
+    startBoardPoint: getSvgPoint(event),
+    startOffset: { ...viewOffset },
+    longPressTimer: null,
+  };
+  board.classList.add("panning");
+  beginGlobalDrag(event.pointerId);
+}
+
+function hasSeenGuide() {
+  try {
+    return localStorage.getItem(GUIDE_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markGuideSeen() {
+  try {
+    localStorage.setItem(GUIDE_STORAGE_KEY, "1");
+  } catch {
+    // The guide can still close normally if storage is blocked.
+  }
+}
+
+function finishGuide() {
+  if (!guideOverlay) return;
+  guideOverlay.hidden = true;
+  markGuideSeen();
+}
+
+function positionGuide() {
+  if (!guideOverlay || guideOverlay.hidden) return;
+  const step = guideSteps[guideStepIndex];
+  const target = document.querySelector(step.selector);
+  if (!target) return;
+
+  const targetRect = target.getBoundingClientRect();
+  const margin = 8;
+  guideSpotlight.style.left = `${Math.max(margin, targetRect.left - margin)}px`;
+  guideSpotlight.style.top = `${Math.max(margin, targetRect.top - margin)}px`;
+  guideSpotlight.style.width = `${targetRect.width + margin * 2}px`;
+  guideSpotlight.style.height = `${targetRect.height + margin * 2}px`;
+
+  const bubbleRect = guideBubble.getBoundingClientRect();
+  let left = targetRect.right + 14;
+  let top = targetRect.top;
+
+  if (left + bubbleRect.width > window.innerWidth - margin) {
+    left = targetRect.left;
+    top = targetRect.bottom + 14;
+  }
+  if (top + bubbleRect.height > window.innerHeight - margin) {
+    top = targetRect.top - bubbleRect.height - 14;
+  }
+
+  guideBubble.style.left = `${Math.max(margin, Math.min(left, window.innerWidth - bubbleRect.width - margin))}px`;
+  guideBubble.style.top = `${Math.max(margin, Math.min(top, window.innerHeight - bubbleRect.height - margin))}px`;
+}
+
+function showGuideStep(index) {
+  if (!guideOverlay) return;
+  guideStepIndex = Math.min(index, guideSteps.length - 1);
+  guideText.textContent = guideSteps[guideStepIndex].text;
+  guideNextButton.textContent = guideStepIndex === guideSteps.length - 1 ? "시작하기" : "다음";
+  guideOverlay.hidden = false;
+  requestAnimationFrame(positionGuide);
+}
+
+function startGuide() {
+  if (!guideOverlay || hasSeenGuide()) return;
+  showGuideStep(0);
+}
+
+function showNextGuideStep() {
+  if (guideStepIndex >= guideSteps.length - 1) {
+    finishGuide();
+    return;
+  }
+  showGuideStep(guideStepIndex + 1);
 }
 
 function startPaletteDrag(event, color) {
@@ -715,6 +826,18 @@ function beginGlobalDrag(pointerId) {
 function moveDrag(event) {
   if (!dragState) return;
   cancelLongPressIfMoved(event);
+
+  if (dragState.mode === "pan") {
+    const point = getSvgPoint(event);
+    viewOffset = {
+      x: dragState.startOffset.x + point.x - dragState.startBoardPoint.x,
+      y: dragState.startOffset.y + point.y - dragState.startBoardPoint.y,
+    };
+    applyViewportTransform();
+    positionGuide();
+    return;
+  }
+
   const point = getBoardPoint(event);
 
   if (dragState.mode === "rotate") {
@@ -773,8 +896,19 @@ function clampGroupDelta(startPositions, rawDelta) {
 function endDrag(event) {
   if (!dragState) return;
   const { tile, mode } = dragState;
-  const before = dragState.before;
   clearLongPressTimer();
+
+  if (mode === "pan") {
+    cleanupDragState();
+    try {
+      board.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already be released by the browser.
+    }
+    return;
+  }
+
+  const before = dragState.before;
 
   const isGroupMove = mode === "move" && dragState.groupTiles?.length > 1;
 
@@ -889,6 +1023,7 @@ function cleanupDragState() {
   if (dragState?.tile?.group) {
     dragState.tile.group.classList.remove("dragging", "rotating");
   }
+  board.classList.remove("panning");
   dragState?.groupTiles?.forEach((tile) => tile.group.classList.remove("group-moving"));
   clearLongPressTimer();
   dragState = null;
@@ -1288,9 +1423,11 @@ function setMode(mode) {
   completeButton.hidden = mode !== "decorate";
   completeButton.textContent = "완성";
   completeButton.classList.remove("editing");
-  paletteHint.textContent = mode === "decorate"
-    ? "원하는 색의 도형을 누르면 물건 안에 바로 나타납니다."
-    : "원하는 색의 도형을 작업판으로 끌어오세요.";
+  if (paletteHint) {
+    paletteHint.textContent = mode === "decorate"
+      ? "원하는 색의 도형을 누르면 물건 안에 바로 나타납니다."
+      : "원하는 색의 도형을 작업판으로 끌어오세요.";
+  }
   modeButtons.forEach((button) => {
     const active = button.dataset.mode === mode;
     button.classList.toggle("active", active);
@@ -1306,7 +1443,7 @@ function setMode(mode) {
     boardHint.textContent = object.hint;
   } else {
     boardTitle.textContent = "같은 길이의 변으로 붙이기";
-    boardHint.textContent = "가운데를 잡으면 이동하고, 꼭짓점을 잡으면 회전합니다.";
+    boardHint.textContent = "빈 곳: 화면 이동 · 도형: 이동/회전";
   }
 
   updateShapeAvailability();
@@ -1487,9 +1624,13 @@ clearButton.addEventListener("click", clearBoard);
 downloadButton.addEventListener("click", downloadPng);
 groupMoveButton.addEventListener("click", toggleGroupMove);
 completeButton.addEventListener("click", toggleDecorateComplete);
+board.addEventListener("pointerdown", startPanDrag);
 document.querySelector("#rotateViewButton").addEventListener("click", rotateView);
 document.querySelector("#zoomOutButton").addEventListener("click", () => changeZoom(-0.15));
 document.querySelector("#zoomInButton").addEventListener("click", () => changeZoom(0.15));
+guideNextButton?.addEventListener("click", showNextGuideStep);
+guideSkipButton?.addEventListener("click", finishGuide);
+window.addEventListener("resize", positionGuide);
 
 renderPalette();
 renderTemplate();
@@ -1519,3 +1660,5 @@ if (initialParams.get("mode") === "decorate") {
   }
   setMode("decorate");
 }
+
+setTimeout(startGuide, 350);

@@ -96,6 +96,7 @@ body {
     linear-gradient(315deg, rgba(6, 167, 125, 0.12), transparent 30%),
     var(--paper);
   font-family: "A2Z", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  word-break: keep-all;
 }
 
 button,
@@ -105,6 +106,7 @@ input {
 
 button {
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .app-shell {
@@ -125,7 +127,7 @@ button {
   margin: 0 0 4px;
   color: var(--accent-dark);
   font-size: 0.88rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 h1,
@@ -137,12 +139,14 @@ p {
 h1 {
   margin-bottom: 0;
   font-size: clamp(2rem, 3.4vw, 3.25rem);
+  font-weight: 600;
   letter-spacing: 0;
 }
 
 h2 {
   margin-bottom: 12px;
   font-size: 1rem;
+  font-weight: 600;
 }
 
 .score-strip {
@@ -158,13 +162,13 @@ h2 {
 .score-strip span {
   display: block;
   font-size: 2rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
 }
 
 .score-strip small {
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .workspace {
@@ -199,7 +203,7 @@ h2 {
   border-radius: 7px;
   background: #fff;
   color: var(--ink);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .mode-button {
@@ -254,7 +258,7 @@ h2 {
   background: #fff;
   color: var(--ink);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .object-button.active {
@@ -291,7 +295,7 @@ h2 {
   margin-top: 9px;
   color: var(--muted);
   font-size: 0.76rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .object-size-control input {
@@ -322,7 +326,7 @@ h2 {
   margin-bottom: 9px;
   color: var(--muted);
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.45;
 }
 
@@ -338,7 +342,7 @@ h2 {
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
-  font-weight: 800;
+  font-weight: 600;
   transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
 }
 
@@ -454,7 +458,7 @@ h2 {
   align-items: center;
   min-height: 44px;
   color: var(--muted);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 input[type="checkbox"] {
@@ -488,6 +492,7 @@ input[type="range"] {
 .command-button {
   min-height: 38px;
   padding: 7px 11px;
+  line-height: 1;
 }
 
 .command-button.ghost {
@@ -517,10 +522,17 @@ input[type="range"] {
   border-bottom: 1px solid var(--line);
 }
 
+.board-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .board-actions {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: nowrap;
 }
 
 .template-status {
@@ -530,7 +542,7 @@ input[type="range"] {
   border-radius: 7px;
   background: #fff;
   font-size: 0.82rem;
-  font-weight: 900;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -542,12 +554,18 @@ input[type="range"] {
 .board-header h2 {
   margin-bottom: 4px;
   font-size: 1.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .board-header p {
   margin-bottom: 0;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .save-button,
@@ -556,6 +574,7 @@ input[type="range"] {
 }
 
 .group-move-button {
+  min-width: 126px;
   background: #fff;
 }
 
@@ -582,22 +601,23 @@ input[type="range"] {
     linear-gradient(90deg, rgba(23, 32, 42, 0.04) 1px, transparent 1px),
     #fffdf8;
   background-size: 24px 24px;
-  cursor: crosshair;
+  cursor: grab;
   touch-action: none;
 }
 
+.board.panning {
+  cursor: grabbing;
+}
+
 .viewport-controls {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  z-index: 5;
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 4px;
-  padding: 4px;
+  padding: 3px;
   border: 1px solid var(--ink);
   border-radius: 7px;
-  background: rgba(255, 255, 255, 0.94);
+  background: #fff;
 }
 
 .viewport-button {
@@ -611,7 +631,7 @@ input[type="range"] {
   background: #fff;
   color: var(--ink);
   font-size: 1.05rem;
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -622,8 +642,9 @@ input[type="range"] {
 .zoom-label {
   min-width: 42px;
   font-size: 0.7rem;
-  font-weight: 900;
+  font-weight: 700;
   text-align: center;
+  white-space: nowrap;
 }
 
 .tile {
@@ -697,6 +718,7 @@ input[type="range"] {
   display: none;
 }
 
+#objectLayer,
 .object-layer {
   pointer-events: none;
 }
@@ -732,7 +754,7 @@ input[type="range"] {
 .clock-number {
   fill: #17202a;
   font-size: 24px;
-  font-weight: 900;
+  font-weight: 700;
   text-anchor: middle;
 }
 
@@ -758,14 +780,14 @@ input[type="range"] {
 .template-slot-number {
   fill: #758196;
   font-size: 15px;
-  font-weight: 900;
+  font-weight: 700;
   pointer-events: none;
   user-select: none;
 }
 
 .mission-box p {
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.45;
 }
 
@@ -788,7 +810,7 @@ input[type="range"] {
   margin: 0;
   padding-left: 18px;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.55;
 }
 
@@ -804,6 +826,69 @@ input[type="range"] {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fff;
+}
+
+.guide-overlay[hidden] {
+  display: none;
+}
+
+.guide-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.guide-spotlight {
+  position: fixed;
+  border: 3px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(23, 32, 42, 0.34);
+  pointer-events: none;
+  transition: left 160ms ease, top 160ms ease, width 160ms ease, height 160ms ease;
+}
+
+.guide-bubble {
+  position: fixed;
+  width: min(270px, calc(100vw - 28px));
+  padding: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 5px 5px 0 var(--ink);
+  pointer-events: auto;
+}
+
+.guide-bubble p {
+  margin: 0 0 10px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.guide-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.guide-button {
+  min-height: 32px;
+  padding: 6px 11px;
+  border: 2px solid var(--ink);
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+
+.guide-button.ghost {
+  background: #fff;
+  box-shadow: none;
 }
 
 @media (max-width: 1100px) {
@@ -942,6 +1027,7 @@ input[type="range"] {
 
   .board-header {
     padding: 9px 12px;
+    gap: 10px;
   }
 
   .board-header h2 {
@@ -962,14 +1048,31 @@ input[type="range"] {
     min-height: 0;
   }
 
-  .viewport-controls {
-    right: 8px;
-    bottom: 8px;
+  .board-actions {
+    gap: 6px;
   }
 
   .viewport-button {
     width: 27px;
     height: 27px;
+  }
+
+  .command-button {
+    min-height: 34px;
+    padding: 6px 9px;
+    font-size: 0.86rem;
+  }
+
+  .save-button {
+    min-width: 58px;
+  }
+
+  .group-move-button {
+    min-width: 114px;
+  }
+
+  .zoom-label {
+    min-width: 38px;
   }
 }
 
@@ -1036,5 +1139,208 @@ input[type="range"] {
 
   input[type="range"] {
     width: 100%;
+  }
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .app-shell {
+    padding: 8px;
+  }
+
+  .topbar {
+    gap: 10px;
+    padding-bottom: 8px;
+  }
+
+  .eyebrow {
+    margin-bottom: 1px;
+    font-size: 0.68rem;
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    margin-bottom: 7px;
+    font-size: 0.78rem;
+  }
+
+  .score-strip {
+    min-width: 82px;
+    padding: 6px 8px;
+  }
+
+  .score-strip span {
+    font-size: 1.25rem;
+  }
+
+  .score-strip small {
+    font-size: 0.62rem;
+  }
+
+  .workspace {
+    grid-template-columns: 176px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .panel {
+    padding: 8px;
+  }
+
+  .panel-section + .panel-section {
+    margin-top: 9px;
+    padding-top: 9px;
+  }
+
+  .mode-switch,
+  .template-picker,
+  .object-picker {
+    gap: 5px;
+  }
+
+  .mode-button {
+    min-height: 29px;
+    font-size: 0.7rem;
+  }
+
+  .template-button {
+    min-height: 34px;
+    padding: 4px 2px;
+    font-size: 0.64rem;
+  }
+
+  .template-button small {
+    font-size: 0.55rem;
+  }
+
+  .object-button {
+    min-height: 50px;
+    font-size: 0.62rem;
+  }
+
+  .object-icon {
+    width: 20px;
+    height: 20px;
+  }
+
+  .object-size-control {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    font-size: 0.64rem;
+  }
+
+  .object-size-control output {
+    text-align: left;
+  }
+
+  .tool-note {
+    font-size: 0.7rem;
+  }
+
+  .shape-button {
+    min-height: 31px;
+    gap: 6px;
+    padding: 4px 6px;
+    font-size: 0.73rem;
+  }
+
+  .shape-icon {
+    width: 17px;
+    height: 17px;
+    flex-basis: 17px;
+  }
+
+  .triangle-icon {
+    border-left-width: 9px;
+    border-right-width: 9px;
+    border-bottom-width: 17px;
+  }
+
+  .palette-tray {
+    gap: 6px;
+  }
+
+  .palette-shape {
+    min-height: 48px;
+  }
+
+  .palette-shape svg {
+    width: 39px;
+    height: 39px;
+  }
+
+  .compact-actions {
+    gap: 6px;
+  }
+
+  .board-area {
+    min-height: calc(100vh - 86px);
+  }
+
+  .board-header {
+    gap: 7px;
+    padding: 7px 8px;
+  }
+
+  .board-header h2 {
+    font-size: 0.8rem;
+  }
+
+  .board-header p {
+    font-size: 0.66rem;
+  }
+
+  .board-actions {
+    gap: 4px;
+  }
+
+  .command-button {
+    min-height: 29px;
+    padding: 5px 7px;
+    font-size: 0.7rem;
+  }
+
+  .complete-button {
+    min-width: 48px;
+  }
+
+  .save-button {
+    min-width: 44px;
+  }
+
+  .group-move-button {
+    min-width: 94px;
+  }
+
+  .viewport-controls {
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .viewport-button {
+    width: 23px;
+    height: 23px;
+    font-size: 0.82rem;
+  }
+
+  .zoom-label {
+    min-width: 31px;
+    font-size: 0.56rem;
+  }
+
+  .guide-bubble {
+    width: min(230px, calc(100vw - 24px));
+    padding: 10px;
+  }
+
+  .guide-bubble p {
+    font-size: 0.78rem;
+  }
+
+  .guide-button {
+    min-height: 29px;
+    padding: 5px 9px;
+    font-size: 0.72rem;
   }
 }
