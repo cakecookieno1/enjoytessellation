@@ -123,6 +123,12 @@ button {
   padding: 4px 4px 12px;
 }
 
+.topbar-status {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--accent-dark);
@@ -169,6 +175,62 @@ h2 {
 .score-strip small {
   color: var(--muted);
   font-weight: 500;
+}
+
+.account-panel {
+  display: grid;
+  gap: 6px;
+  min-width: 224px;
+  padding: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.account-panel strong {
+  display: block;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 5px;
+}
+
+.account-fields input {
+  min-width: 0;
+  height: 30px;
+  padding: 5px 7px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.76rem;
+}
+
+.account-button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: var(--mint);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.account-button.ghost {
+  width: max-content;
+  background: #fff;
+  color: var(--ink);
 }
 
 .workspace {
@@ -569,6 +631,7 @@ input[type="range"] {
 }
 
 .save-button,
+.share-button,
 .group-move-button {
   min-width: 78px;
 }
@@ -592,6 +655,10 @@ input[type="range"] {
   background: #ffd166;
 }
 
+.share-button {
+  background: #ffd166;
+}
+
 .board {
   width: 100%;
   flex: 1;
@@ -603,6 +670,94 @@ input[type="range"] {
   background-size: 24px 24px;
   cursor: grab;
   touch-action: none;
+}
+
+.community-panel {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 8;
+  display: grid;
+  gap: 10px;
+  width: min(420px, calc(100% - 28px));
+  max-height: min(360px, calc(100% - 92px));
+  overflow: auto;
+  padding: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 6px 6px 0 var(--ink);
+}
+
+.community-panel[hidden] {
+  display: none;
+}
+
+.community-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.community-header h2 {
+  margin-bottom: 3px;
+}
+
+.community-header p {
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.community-list {
+  display: grid;
+  gap: 8px;
+}
+
+.community-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.community-card {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.community-card strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.community-card span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.community-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.community-card-actions button {
+  min-height: 28px;
+  padding: 5px 8px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 .board.panning {
@@ -954,6 +1109,23 @@ input[type="range"] {
     font-size: 0.76rem;
   }
 
+  .account-panel {
+    min-width: 198px;
+    padding: 7px;
+  }
+
+  .account-panel strong,
+  .account-fields input,
+  .account-button {
+    font-size: 0.68rem;
+  }
+
+  .account-fields input,
+  .account-button {
+    height: 27px;
+    min-height: 27px;
+  }
+
   .workspace {
     flex: 1;
     min-height: 0;
@@ -1067,6 +1239,10 @@ input[type="range"] {
     min-width: 58px;
   }
 
+  .share-button {
+    min-width: 58px;
+  }
+
   .group-move-button {
     min-width: 114px;
   }
@@ -1091,6 +1267,16 @@ input[type="range"] {
     align-items: flex-start;
     flex-direction: column;
     gap: 12px;
+  }
+
+  .topbar-status {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .account-panel {
+    width: 100%;
+    min-width: 0;
   }
 
   h1 {
@@ -1169,6 +1355,28 @@ input[type="range"] {
   .score-strip {
     min-width: 82px;
     padding: 6px 8px;
+  }
+
+  .account-panel {
+    min-width: 188px;
+    padding: 6px;
+  }
+
+  .account-panel strong,
+  .account-fields input,
+  .account-button {
+    font-size: 0.62rem;
+  }
+
+  .account-fields {
+    gap: 4px;
+  }
+
+  .account-fields input,
+  .account-button {
+    height: 26px;
+    min-height: 26px;
+    padding: 4px 6px;
   }
 
   .score-strip span {
@@ -1306,6 +1514,10 @@ input[type="range"] {
   }
 
   .save-button {
+    min-width: 44px;
+  }
+
+  .share-button {
     min-width: 44px;
   }
 

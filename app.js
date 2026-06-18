@@ -20,6 +20,17 @@ const boardHint = document.querySelector("#boardHint");
 const zoomLabel = document.querySelector("#zoomLabel");
 const downloadButton = document.querySelector("#downloadButton");
 const groupMoveButton = document.querySelector("#groupMoveButton");
+const accountStatus = document.querySelector("#accountStatus");
+const loginFields = document.querySelector("#loginFields");
+const userNameInput = document.querySelector("#userNameInput");
+const passwordInput = document.querySelector("#passwordInput");
+const loginButton = document.querySelector("#loginButton");
+const logoutButton = document.querySelector("#logoutButton");
+const shareButton = document.querySelector("#shareButton");
+const communityPanel = document.querySelector("#communityPanel");
+const closeCommunityButton = document.querySelector("#closeCommunityButton");
+const communityList = document.querySelector("#communityList");
+const communityHint = document.querySelector("#communityHint");
 const guideOverlay = document.querySelector("#guideOverlay");
 const guideSpotlight = document.querySelector("#guideSpotlight");
 const guideBubble = document.querySelector("#guideBubble");
@@ -44,6 +55,9 @@ const BOARD_BOUNDS = { minX: 40, minY: 40, maxX: 780, maxY: 580 };
 const GROUP_EDGE_DISTANCE = 6;
 const GROUP_EDGE_ANGLE_TOLERANCE = 0.16;
 const GUIDE_STORAGE_KEY = "tessellationGuideSeen";
+const ACCOUNT_STORAGE_KEY = "tessellationAccounts";
+const SESSION_STORAGE_KEY = "tessellationSession";
+const COMMUNITY_STORAGE_KEY = "tessellationCommunityPosts";
 const palette = ["#f76f53", "#ffd166", "#06a77d", "#4d96ff", "#8e5cf7", "#ffffff"];
 
 const guideSteps = [
@@ -115,6 +129,7 @@ let viewOffset = { x: 0, y: 0 };
 let objectScale = 1.15;
 let groupMoveEnabled = false;
 let guideStepIndex = 0;
+let currentUser = null;
 
 board.setAttribute("viewBox", "0 0 820 620");
 applyViewportTransform();
@@ -699,6 +714,334 @@ function showNextGuideStep() {
     return;
   }
   showGuideStep(guideStepIndex + 1);
+}
+
+function readJsonStorage(key, fallback) {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJsonStorage(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    window.alert("이 기기에는 저장할 수 없어요. 브라우저 저장 공간을 확인해 주세요.");
+  }
+}
+
+function normalizeUserName(name) {
+  return name.trim().replace(/\s+/g, " ").slice(0, 12);
+}
+
+function hashPassword(name, password) {
+  const source = `${name}:${password}`;
+  let hash = 5381;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = ((hash << 5) + hash) + source.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function getLocalAccounts() {
+  return readJsonStorage(ACCOUNT_STORAGE_KEY, {});
+}
+
+function setSession(user) {
+  currentUser = user;
+  writeJsonStorage(SESSION_STORAGE_KEY, user);
+  updateAccountUi();
+  renderCommunityPosts();
+}
+
+function clearSession() {
+  currentUser = null;
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+  updateAccountUi();
+  renderCommunityPosts();
+}
+
+function restoreSession() {
+  const saved = readJsonStorage(SESSION_STORAGE_KEY, null);
+  if (saved?.name) currentUser = saved;
+  updateAccountUi();
+}
+
+function updateAccountUi() {
+  if (!accountStatus) return;
+  const signedIn = Boolean(currentUser?.name);
+  accountStatus.textContent = signedIn ? `${currentUser.name} 입장 중` : "손님";
+  loginFields.hidden = signedIn;
+  logoutButton.hidden = !signedIn;
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (currentUser?.token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${currentUser.token}`;
+  }
+
+  const response = await fetch(path, {
+    headers,
+    ...options,
+  });
+  if (!response.ok) {
+    const rawMessage = await response.text();
+    let message = rawMessage;
+    try {
+      message = JSON.parse(rawMessage).error || rawMessage;
+    } catch {
+      // Plain text errors are shown as-is.
+    }
+    const error = new Error(message || `HTTP ${response.status}`);
+    error.status = response.status;
+    if (response.status === 401 && currentUser?.token) {
+      clearSession();
+    }
+    throw error;
+  }
+  return response.status === 204 ? null : response.json();
+}
+
+async function authenticateUser(name, password) {
+  try {
+    const data = await apiRequest("./api/auth", {
+      method: "POST",
+      body: JSON.stringify({ name, password }),
+    });
+    return data.user;
+  } catch (error) {
+    if (error.status && error.status !== 404) throw error;
+    const accounts = getLocalAccounts();
+    const passwordHash = hashPassword(name, password);
+    const existing = accounts[name];
+
+    if (existing && existing.passwordHash !== passwordHash) {
+      throw new Error("비밀번호가 맞지 않아요.");
+    }
+
+    accounts[name] = existing || {
+      name,
+      passwordHash,
+      createdAt: new Date().toISOString(),
+    };
+    writeJsonStorage(ACCOUNT_STORAGE_KEY, accounts);
+    return { name };
+  }
+}
+
+async function signIn() {
+  const name = normalizeUserName(userNameInput.value);
+  const password = passwordInput.value.trim();
+  if (!name || !password) {
+    window.alert("이름과 비밀번호를 모두 입력해 주세요.");
+    return;
+  }
+
+  try {
+    const user = await authenticateUser(name, password);
+    passwordInput.value = "";
+    setSession(user);
+  } catch (error) {
+    window.alert(error.message || "입장하지 못했습니다.");
+  }
+}
+
+function getLocalCommunityPosts() {
+  return readJsonStorage(COMMUNITY_STORAGE_KEY, []);
+}
+
+function saveLocalCommunityPosts(posts) {
+  writeJsonStorage(COMMUNITY_STORAGE_KEY, posts.slice(0, 24));
+}
+
+async function getCommunityPosts() {
+  try {
+    const data = await apiRequest("./api/posts");
+    return data.posts || [];
+  } catch {
+    return getLocalCommunityPosts();
+  }
+}
+
+async function saveCommunityPost(post) {
+  try {
+    const data = await apiRequest("./api/posts", {
+      method: "POST",
+      body: JSON.stringify(post),
+    });
+    return data.post;
+  } catch (error) {
+    if (error.status && error.status !== 404) throw error;
+    const posts = getLocalCommunityPosts();
+    posts.unshift(post);
+    saveLocalCommunityPosts(posts);
+    return post;
+  }
+}
+
+async function removeCommunityPost(postId, author) {
+  try {
+    await apiRequest(`./api/posts?id=${encodeURIComponent(postId)}`, {
+      method: "DELETE",
+    });
+  } catch (error) {
+    if (error.status && error.status !== 404) throw error;
+    const posts = getLocalCommunityPosts();
+    saveLocalCommunityPosts(posts.filter((item) => !(item.id === postId && item.author === author)));
+  }
+}
+
+function formatPostTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("ko-KR", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function createBoardPost() {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    author: currentUser.name,
+    createdAt: new Date().toISOString(),
+    mode: activeMode,
+    templateId: activeTemplateId,
+    objectId: activeObjectId,
+    objectScale,
+    tileCount: tiles.length,
+    tiles: captureState(),
+  };
+}
+
+async function publishCurrentBoard() {
+  if (!currentUser?.name) {
+    window.alert("이름과 비밀번호로 먼저 입장해 주세요.");
+    userNameInput?.focus();
+    return;
+  }
+  if (!tiles.length) {
+    window.alert("공유할 도형을 먼저 만들어 주세요.");
+    return;
+  }
+
+  try {
+    await saveCommunityPost(createBoardPost());
+    communityPanel.hidden = false;
+    renderCommunityPosts();
+  } catch (error) {
+    window.alert(error.message || "공유하지 못했습니다.");
+  }
+}
+
+async function loadCommunityPost(postId) {
+  const post = (await getCommunityPosts()).find((item) => item.id === postId);
+  if (!post) return;
+  if (tiles.length && !window.confirm("지금 만든 도형이 지워져요.\n게시판 작품을 불러올까요?")) return;
+  activeMode = post.mode || "free";
+  activeTemplateId = post.templateId || activeTemplateId;
+  activeObjectId = post.objectId || activeObjectId;
+  objectScale = post.objectScale || objectScale;
+  objectSizeRange.value = String(Math.round(objectScale * 100));
+  objectSizeLabel.textContent = `${objectSizeRange.value}%`;
+  templatePanel.hidden = activeMode !== "template";
+  decoratePanel.hidden = activeMode !== "decorate";
+  completeButton.hidden = activeMode !== "decorate";
+  modeButtons.forEach((button) => {
+    const active = button.dataset.mode === activeMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  templateButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.template === activeTemplateId);
+  });
+  objectButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.object === activeObjectId);
+  });
+  if (activeMode === "template") {
+    boardTitle.textContent = `${getActiveTemplate().name} 도안 채우기`;
+    boardHint.textContent = "도형을 직접 회전해 점선과 같은 방향으로 맞춘 뒤 가까이 놓으세요.";
+  } else if (activeMode === "decorate") {
+    const object = decorateObjects[activeObjectId];
+    boardTitle.textContent = object.title;
+    boardHint.textContent = object.hint;
+  } else {
+    boardTitle.textContent = "같은 길이의 변으로 붙이기";
+    boardHint.textContent = "빈 곳: 화면 이동 · 도형: 이동/회전";
+  }
+  restoreState(post.tiles || []);
+  renderDecorativeObject();
+  updateShapeAvailability();
+  updateStats();
+}
+
+async function deleteCommunityPost(postId) {
+  const posts = await getCommunityPosts();
+  const post = posts.find((item) => item.id === postId);
+  if (!post || post.author !== currentUser?.name) return;
+  try {
+    await removeCommunityPost(postId, currentUser.name);
+    renderCommunityPosts();
+  } catch (error) {
+    window.alert(error.message || "삭제하지 못했습니다.");
+  }
+}
+
+async function renderCommunityPosts() {
+  if (!communityList) return;
+  const posts = await getCommunityPosts();
+  communityList.replaceChildren();
+  if (!posts.length) {
+    const empty = document.createElement("p");
+    empty.className = "community-empty";
+    empty.textContent = "아직 올라온 보드가 없어요.";
+    communityList.appendChild(empty);
+    return;
+  }
+
+  posts.forEach((post) => {
+    const card = document.createElement("article");
+    card.className = "community-card";
+
+    const title = document.createElement("strong");
+    title.textContent = `${post.author}의 테셀레이션`;
+    const meta = document.createElement("span");
+    meta.textContent = `${post.tileCount || 0}개 도형 · ${formatPostTime(post.createdAt)}`;
+
+    const actions = document.createElement("div");
+    actions.className = "community-card-actions";
+    const loadButton = document.createElement("button");
+    loadButton.type = "button";
+    loadButton.textContent = "불러오기";
+    loadButton.addEventListener("click", () => loadCommunityPost(post.id));
+    actions.appendChild(loadButton);
+
+    if (post.author === currentUser?.name) {
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.textContent = "삭제";
+      deleteButton.addEventListener("click", () => deleteCommunityPost(post.id));
+      actions.appendChild(deleteButton);
+    }
+
+    card.append(title, meta, actions);
+    communityList.appendChild(card);
+  });
 }
 
 function startPaletteDrag(event, color) {
@@ -1625,6 +1968,15 @@ downloadButton.addEventListener("click", downloadPng);
 groupMoveButton.addEventListener("click", toggleGroupMove);
 completeButton.addEventListener("click", toggleDecorateComplete);
 board.addEventListener("pointerdown", startPanDrag);
+loginButton?.addEventListener("click", signIn);
+logoutButton?.addEventListener("click", clearSession);
+passwordInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") signIn();
+});
+shareButton?.addEventListener("click", publishCurrentBoard);
+closeCommunityButton?.addEventListener("click", () => {
+  communityPanel.hidden = true;
+});
 document.querySelector("#rotateViewButton").addEventListener("click", rotateView);
 document.querySelector("#zoomOutButton").addEventListener("click", () => changeZoom(-0.15));
 document.querySelector("#zoomInButton").addEventListener("click", () => changeZoom(0.15));
@@ -1638,6 +1990,8 @@ renderDecorativeObject();
 updateStats();
 updateUndoButton();
 updateGroupMoveButton();
+restoreSession();
+renderCommunityPosts();
 
 const initialParams = new URLSearchParams(window.location.search);
 const initialTemplate = initialParams.get("template");
@@ -1662,3 +2016,11 @@ if (initialParams.get("mode") === "decorate") {
 }
 
 setTimeout(startGuide, 350);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((error) => {
+      console.warn("Service worker registration failed", error);
+    });
+  });
+}

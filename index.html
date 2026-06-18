@@ -3,8 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f76f53" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="테셀레이션" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
     <title>테셀레이션 놀이터</title>
-    <link rel="stylesheet" href="./styles.css?v=20260618-pan" />
+    <link rel="stylesheet" href="./styles.css?v=20260618-pwa" />
   </head>
   <body>
     <main class="app-shell">
@@ -13,9 +19,20 @@
           <p class="eyebrow">초등 수학 체험</p>
           <h1>테셀레이션 놀이터</h1>
         </div>
-        <div class="score-strip" aria-live="polite">
-          <span id="tileCount">0</span>
-          <small id="scoreLabel">배치한 도형</small>
+        <div class="topbar-status">
+          <div class="score-strip" aria-live="polite">
+            <span id="tileCount">0</span>
+            <small id="scoreLabel">배치한 도형</small>
+          </div>
+          <section class="account-panel" aria-label="사용자 계정">
+            <strong id="accountStatus">손님</strong>
+            <div id="loginFields" class="account-fields">
+              <input id="userNameInput" type="text" maxlength="12" autocomplete="username" placeholder="이름" aria-label="이름" />
+              <input id="passwordInput" type="password" maxlength="24" autocomplete="current-password" placeholder="비밀번호" aria-label="비밀번호" />
+              <button id="loginButton" class="account-button" type="button">입장</button>
+            </div>
+            <button id="logoutButton" class="account-button ghost" type="button" hidden>나가기</button>
+          </section>
         </div>
       </header>
 
@@ -136,6 +153,7 @@
               <span id="templateStatus" class="template-status" hidden></span>
               <button id="completeButton" class="command-button complete-button" hidden>완성</button>
               <button id="groupMoveButton" class="command-button group-move-button" type="button" title="묶어서 옮기기" aria-pressed="false">묶음 이동</button>
+              <button id="shareButton" class="command-button share-button" type="button" title="공유게시판에 올리기">공유</button>
               <button id="downloadButton" class="command-button save-button" title="PNG로 저장">저장</button>
               <div class="viewport-controls" aria-label="화면 보기 조절">
                 <button id="rotateViewButton" class="viewport-button" type="button" title="화면 90도 회전" aria-label="화면 90도 회전">↻</button>
@@ -155,6 +173,16 @@
               <g id="objectLayer"></g>
             </g>
           </svg>
+          <section id="communityPanel" class="community-panel" aria-label="공유게시판" hidden>
+            <div class="community-header">
+              <div>
+                <h2>공유게시판</h2>
+                <p id="communityHint">입장한 친구들이 만든 보드를 이 기기에서 함께 볼 수 있어요.</p>
+              </div>
+              <button id="closeCommunityButton" class="command-button ghost" type="button">닫기</button>
+            </div>
+            <div id="communityList" class="community-list"></div>
+          </section>
         </section>
       </section>
     </main>
@@ -170,6 +198,6 @@
       </div>
     </div>
 
-    <script src="./app.js?v=20260618-pan"></script>
+    <script src="./app.js?v=20260618-pwa"></script>
   </body>
 </html>

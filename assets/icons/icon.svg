@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="테셀레이션 놀이터">
+  <rect width="512" height="512" rx="96" fill="#fffdf8"/>
+  <path d="M68 120h124v124H68z" fill="#4d96ff" stroke="#17202a" stroke-width="12"/>
+  <path d="M320 70 430 134v128l-110 64-110-64V134z" fill="#ffd166" stroke="#17202a" stroke-width="12"/>
+  <path d="M170 310 252 168l82 142z" fill="#06a77d" stroke="#17202a" stroke-width="12"/>
+  <path d="M96 332h128v96H96z" fill="#f76f53" stroke="#17202a" stroke-width="12"/>
+  <path d="M328 336 420 388l-92 52-92-52z" fill="#8e5cf7" stroke="#17202a" stroke-width="12"/>
+</svg>
