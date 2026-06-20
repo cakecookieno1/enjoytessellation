@@ -21,17 +21,30 @@ const zoomLabel = document.querySelector("#zoomLabel");
 const downloadButton = document.querySelector("#downloadButton");
 const groupMoveButton = document.querySelector("#groupMoveButton");
 const accountStatus = document.querySelector("#accountStatus");
-const loginFields = document.querySelector("#loginFields");
+const openLoginButton = document.querySelector("#openLoginButton");
 const classCodeInput = document.querySelector("#classCodeInput");
 const userNameInput = document.querySelector("#userNameInput");
 const passwordInput = document.querySelector("#passwordInput");
 const loginButton = document.querySelector("#loginButton");
 const logoutButton = document.querySelector("#logoutButton");
+const entryOverlay = document.querySelector("#entryOverlay");
+const entryTitle = document.querySelector("#entryTitle");
+const entryDescription = document.querySelector(".entry-description");
+const entryChoices = document.querySelector("#entryChoices");
+const entryLoginForm = document.querySelector("#entryLoginForm");
+const chooseLoginButton = document.querySelector("#chooseLoginButton");
+const guestEntryButton = document.querySelector("#guestEntryButton");
+const entryBackButton = document.querySelector("#entryBackButton");
+const entryLoginError = document.querySelector("#entryLoginError");
+const orientationOverlay = document.querySelector("#orientationOverlay");
 const shareButton = document.querySelector("#shareButton");
 const communityPanel = document.querySelector("#communityPanel");
 const closeCommunityButton = document.querySelector("#closeCommunityButton");
 const communityList = document.querySelector("#communityList");
 const communityHint = document.querySelector("#communityHint");
+const shareSuccessOverlay = document.querySelector("#shareSuccessOverlay");
+const shareSuccessYesButton = document.querySelector("#shareSuccessYesButton");
+const shareSuccessNoButton = document.querySelector("#shareSuccessNoButton");
 const guideOverlay = document.querySelector("#guideOverlay");
 const guideSpotlight = document.querySelector("#guideSpotlight");
 const guideBubble = document.querySelector("#guideBubble");
@@ -47,8 +60,10 @@ const objectButtons = [...document.querySelectorAll(".object-button")];
 const NS = "http://www.w3.org/2000/svg";
 const SIDE = 72;
 const SNAP_DISTANCE = 24;
+const SNAP_ROTATION_TOLERANCE = 10;
 const TEMPLATE_SNAP_DISTANCE = 72;
 const TEMPLATE_ROTATION_TOLERANCE = 4;
+const TEMPLATE_MAX_SLOTS = 180;
 const HANDLE_RADIUS = 4.5;
 const LONG_PRESS_MS = 650;
 const LONG_PRESS_MOVE_LIMIT = 8;
@@ -59,8 +74,9 @@ const GUIDE_STORAGE_KEY = "tessellationGuideSeen";
 const ACCOUNT_STORAGE_KEY = "tessellationAccounts";
 const SESSION_STORAGE_KEY = "tessellationSession";
 const COMMUNITY_STORAGE_KEY = "tessellationCommunityPosts";
+const ENTRY_CHOICE_STORAGE_KEY = "tessellationEntryChoice";
 const DEFAULT_CLASS_CODE = "class-1";
-const palette = ["#f76f53", "#ffd166", "#06a77d", "#4d96ff", "#8e5cf7", "#ffffff"];
+const palette = ["#ffffff", "#ffd166", "#f76f53", "#06a77d", "#4d96ff"];
 
 const guideSteps = [
   { selector: '.mode-button[data-mode="free"]', text: "자유롭게 도형을 붙여볼 수 있어요." },
@@ -132,6 +148,7 @@ let objectScale = 1.15;
 let groupMoveEnabled = false;
 let guideStepIndex = 0;
 let currentUser = null;
+let customColor = "#8e5cf7";
 
 board.setAttribute("viewBox", "0 0 820 620");
 applyViewportTransform();
@@ -152,7 +169,7 @@ function toDegrees(radians) {
 
 function regularPolygonPoints(sides) {
   const radius = SIDE / (2 * Math.sin(Math.PI / sides));
-  const start = sides === 4 ? -45 : -90;
+  const start = sides === 4 ? -45 : sides === 12 ? -105 : -90;
   return Array.from({ length: sides }, (_, index) => {
     const angle = toRadians(start + index * 360 / sides);
     return { x: radius * Math.cos(angle), y: radius * Math.sin(angle) };
@@ -195,30 +212,171 @@ function polygonAtSharedVertex(sides, vertex, startAngle) {
   };
 }
 
-function buildArchimedeanTemplates() {
-  const vertex = { x: 410, y: 310 };
-  const result = {};
-
-  Object.entries(archimedeanConfigs).forEach(([id, config]) => {
-    let angle = -90;
-    const slots = config.polygons.map((sides, index) => {
-      const polygon = polygonAtSharedVertex(sides, vertex, angle);
-      angle += 180 - 360 / sides;
-      return {
-        id: `${id}-${index}`,
-        shape: shapeForSides(sides),
-        x: polygon.center.x,
-        y: polygon.center.y,
-        rotation: polygon.rotation,
-      };
-    });
-    result[id] = { name: config.name, slots };
-  });
-
-  return result;
+function pointsMatch(pointA, pointB, tolerance = 0.6) {
+  return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y) <= tolerance;
 }
 
-templates = buildArchimedeanTemplates();
+function polygonMatches(record, polygon) {
+  return record.sides === polygon.sides && pointsMatch(record.center, polygon.center);
+}
+
+function polygonIntersectsTemplateArea(points) {
+  const bounds = polygonBounds(points);
+  return bounds.maxX >= -2
+    && bounds.minX <= 822
+    && bounds.maxY >= -2
+    && bounds.minY <= 622;
+}
+
+function polygonCenterWithinExpansionArea(center) {
+  const margin = SIDE * 3.5;
+  return center.x >= -margin
+    && center.x <= 820 + margin
+    && center.y >= -margin
+    && center.y <= 620 + margin;
+}
+
+function createVertexFan(config, vertex, startAngle, startIndex = 0) {
+  let angle = startAngle;
+  return Array.from({ length: config.polygons.length }, (_, offset) => {
+    const sides = config.polygons[(startIndex + offset) % config.polygons.length];
+    const geometry = polygonAtSharedVertex(sides, vertex, angle);
+    angle += 180 - 360 / sides;
+    return { sides, ...geometry };
+  });
+}
+
+function fanFitsExistingPolygons(fan, records) {
+  let matches = 0;
+  for (const polygon of fan) {
+    if (records.some((record) => polygonMatches(record, polygon))) {
+      matches += 1;
+      continue;
+    }
+    if (records.some((record) => (
+      boundsOverlap(polygonBounds(record.points), polygonBounds(polygon.points))
+      && polygonsOverlap(record.points, polygon.points)
+    ))) return null;
+  }
+  return { fan, matches };
+}
+
+function polygonRecordFromPoints(sides, points) {
+  const center = points.reduce(
+    (sum, point) => ({ x: sum.x + point.x / sides, y: sum.y + point.y / sides }),
+    { x: 0, y: 0 },
+  );
+  const baseFirst = basePoints(shapeForSides(sides))[0];
+  const baseAngle = toDegrees(Math.atan2(baseFirst.y, baseFirst.x));
+  const firstAngle = toDegrees(Math.atan2(points[0].y - center.y, points[0].x - center.x));
+  return { sides, center, points, rotation: firstAngle - baseAngle };
+}
+
+function buildSnubSquarePolygons() {
+  const period = SIDE * (1 + Math.sqrt(3));
+  const origin = { x: 410, y: 310 };
+  const records = [];
+  const recordKeys = new Set();
+
+  const addRecord = (record) => {
+    const key = `${record.sides}|${Math.round(record.center.x * 10)},${Math.round(record.center.y * 10)}`;
+    if (recordKeys.has(key)) return;
+    recordKeys.add(key);
+    records.push(record);
+  };
+
+  for (let row = -6; row <= 6; row += 1) {
+    for (let column = -6; column <= 6; column += 1) {
+      const cell = {
+        x: origin.x + column * period,
+        y: origin.y + row * period,
+      };
+      [
+        { x: 0, y: 0, rotation: 30 },
+        { x: period / 2, y: 0, rotation: 60 },
+        { x: period / 2, y: -period / 2, rotation: 30 },
+        { x: period, y: -period / 2, rotation: 60 },
+      ].forEach((motif) => {
+        const center = { x: cell.x + motif.x, y: cell.y + motif.y };
+        const points = basePoints("square").map((point) => {
+          const rotated = rotatePoint(point, motif.rotation);
+          return { x: center.x + rotated.x, y: center.y + rotated.y };
+        });
+        addRecord({ sides: 4, center, points, rotation: motif.rotation });
+      });
+    }
+  }
+
+  const squares = [...records];
+  squares.forEach((square) => {
+    square.points.forEach((edgeStart, index) => {
+      const edgeEnd = square.points[(index + 1) % square.points.length];
+      const reversedAngle = Math.atan2(edgeStart.y - edgeEnd.y, edgeStart.x - edgeEnd.x);
+      const thirdPoint = {
+        x: edgeStart.x + SIDE * Math.cos(reversedAngle + 2 * Math.PI / 3),
+        y: edgeStart.y + SIDE * Math.sin(reversedAngle + 2 * Math.PI / 3),
+      };
+      addRecord(polygonRecordFromPoints(3, [edgeEnd, edgeStart, thirdPoint]));
+    });
+  });
+
+  return records.filter((record) => polygonIntersectsTemplateArea(record.points));
+}
+
+function expandArchimedeanTemplate(config) {
+  const origin = { x: 410, y: 310 };
+  const records = createVertexFan(config, origin, -90).map((polygon) => ({ ...polygon }));
+  const vertexQueue = records.flatMap((record) => record.points.map((point) => ({ ...point })));
+  const processedVertices = new Set();
+
+  while (vertexQueue.length && records.length < TEMPLATE_MAX_SLOTS) {
+    const vertex = vertexQueue.shift();
+    const vertexKey = `${Math.round(vertex.x * 10)},${Math.round(vertex.y * 10)}`;
+    if (processedVertices.has(vertexKey)) continue;
+    processedVertices.add(vertexKey);
+
+    const incident = records.filter((record) => record.points.some((point) => pointsMatch(point, vertex)));
+    let best = null;
+
+    incident.forEach((anchor) => {
+      const vertexIndex = anchor.points.findIndex((point) => pointsMatch(point, vertex));
+      const nextPoint = anchor.points[(vertexIndex + 1) % anchor.points.length];
+      const startAngle = toDegrees(Math.atan2(nextPoint.y - vertex.y, nextPoint.x - vertex.x));
+
+      config.polygons.forEach((sides, configIndex) => {
+        if (sides !== anchor.sides) return;
+        const fan = createVertexFan(config, vertex, startAngle, configIndex);
+        if (!polygonMatches(anchor, fan[0])) return;
+        const candidate = fanFitsExistingPolygons(fan, records);
+        if (!candidate) return;
+        if (!best || candidate.matches > best.matches) best = candidate;
+      });
+    });
+
+    if (!best) continue;
+    best.fan.forEach((polygon) => {
+      if (!polygonCenterWithinExpansionArea(polygon.center)) return;
+      if (records.some((record) => polygonMatches(record, polygon))) return;
+      records.push({ ...polygon });
+      polygon.points.forEach((point) => vertexQueue.push({ ...point }));
+    });
+  }
+
+  return records.filter((record) => polygonIntersectsTemplateArea(record.points));
+}
+
+function buildArchimedeanTemplate(id) {
+  const config = archimedeanConfigs[id];
+  const polygons = id === "t33434" ? buildSnubSquarePolygons() : expandArchimedeanTemplate(config);
+  const slots = polygons.map((polygon, index) => ({
+    id: `${id}-${index}`,
+    shape: shapeForSides(polygon.sides),
+    x: polygon.center.x,
+    y: polygon.center.y,
+    rotation: polygon.rotation,
+  }));
+  return { name: config.name, slots };
+}
 
 function rotatePoint(point, degrees) {
   const angle = toRadians(degrees);
@@ -282,14 +440,17 @@ function palettePoints(shape) {
 
 function renderPalette() {
   paletteTray.replaceChildren();
-  palette.forEach((color) => {
+  const appendPaletteButton = (color, container = paletteTray, custom = false) => {
     const button = document.createElement("button");
     button.className = "palette-shape";
     button.type = "button";
     button.disabled = activeMode === "decorate" && decorateComplete;
     button.dataset.color = color;
     const paletteAction = activeMode === "decorate" ? "만들기" : "끌어오기";
-    button.setAttribute("aria-label", `${shapeNames[selectedShape]} ${color} ${paletteAction}`);
+    button.setAttribute(
+      "aria-label",
+      `${shapeNames[selectedShape]} ${custom ? "내가 고른 색" : color} ${paletteAction}`,
+    );
 
     const svg = createSvgElement("svg", { viewBox: "0 0 72 72", "aria-hidden": "true" });
     const polygon = createSvgElement("polygon", {
@@ -300,12 +461,43 @@ function renderPalette() {
     });
     svg.appendChild(polygon);
     button.appendChild(svg);
-    button.addEventListener("pointerdown", (event) => startPaletteDrag(event, color));
-    paletteTray.appendChild(button);
+    button.addEventListener("pointerdown", (event) => startPaletteDrag(event, button.dataset.color));
+    container.appendChild(button);
+    return { button, polygon };
+  };
+
+  palette.forEach((color) => appendPaletteButton(color));
+
+  const customCell = document.createElement("div");
+  customCell.className = "custom-palette-cell";
+  const customShape = appendPaletteButton(customColor, customCell, true);
+  const colorInput = document.createElement("input");
+  colorInput.className = "custom-color-input";
+  colorInput.type = "color";
+  colorInput.value = customColor;
+  colorInput.setAttribute("aria-label", "도형 색상 직접 고르기");
+  colorInput.title = "색상 직접 고르기";
+  colorInput.addEventListener("pointerdown", (event) => event.stopPropagation());
+  colorInput.addEventListener("input", () => {
+    customColor = colorInput.value;
+    customShape.button.dataset.color = customColor;
+    customShape.button.setAttribute(
+      "aria-label",
+      `${shapeNames[selectedShape]} 내가 고른 색 ${activeMode === "decorate" ? "만들기" : "끌어오기"}`,
+    );
+    customShape.polygon.setAttribute("fill", customColor);
   });
+  const rainbowIndicator = document.createElement("span");
+  rainbowIndicator.className = "custom-color-indicator";
+  rainbowIndicator.setAttribute("aria-hidden", "true");
+  customCell.append(customShape.button, rainbowIndicator, colorInput);
+  paletteTray.appendChild(customCell);
 }
 
 function getActiveTemplate() {
+  if (!templates[activeTemplateId]) {
+    templates[activeTemplateId] = buildArchimedeanTemplate(activeTemplateId);
+  }
   return templates[activeTemplateId];
 }
 
@@ -313,30 +505,41 @@ function getOccupiedSlotIds() {
   return new Set(tiles.map((tile) => tile.slotId).filter(Boolean));
 }
 
+function templateEdgeKey(pointA, pointB) {
+  const pointKey = (point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  return [pointKey(pointA), pointKey(pointB)].sort().join("|");
+}
+
 function renderTemplate() {
   templateLayer.replaceChildren();
   if (activeMode !== "template") return;
 
   const occupied = getOccupiedSlotIds();
-  getActiveTemplate().slots.forEach((slot, index) => {
+  const uniqueEdges = new Map();
+  getActiveTemplate().slots.forEach((slot) => {
+    const points = slotPoints(slot);
     const polygon = createSvgElement("polygon", {
       class: `template-slot${occupied.has(slot.id) ? " occupied" : ""}`,
-      points: pointsToString(slotPoints(slot)),
+      points: pointsToString(points),
       "data-slot-id": slot.id,
       "data-shape": slot.shape,
     });
     templateLayer.appendChild(polygon);
+    points.forEach((start, index) => {
+      const end = points[(index + 1) % points.length];
+      const key = templateEdgeKey(start, end);
+      if (!uniqueEdges.has(key)) uniqueEdges.set(key, { start, end });
+    });
+  });
 
-    if (!occupied.has(slot.id)) {
-      const label = createSvgElement("text", {
-        class: "template-slot-number",
-        x: slot.x,
-        y: slot.y + 5,
-        "text-anchor": "middle",
-      });
-      label.textContent = index + 1;
-      templateLayer.appendChild(label);
-    }
+  uniqueEdges.forEach(({ start, end }) => {
+    templateLayer.appendChild(createSvgElement("line", {
+      class: "template-edge",
+      x1: start.x,
+      y1: start.y,
+      x2: end.x,
+      y2: end.y,
+    }));
   });
 }
 
@@ -577,14 +780,22 @@ function selectTile(tile) {
 }
 
 function getSvgPoint(event) {
+  return getSvgPointFromClient(event.clientX, event.clientY);
+}
+
+function getSvgPointFromClient(clientX, clientY) {
   const point = board.createSVGPoint();
-  point.x = event.clientX;
-  point.y = event.clientY;
+  point.x = clientX;
+  point.y = clientY;
   return point.matrixTransform(board.getScreenCTM().inverse());
 }
 
 function getBoardPoint(event) {
-  const boardPoint = getSvgPoint(event);
+  return getBoardPointFromClient(event.clientX, event.clientY);
+}
+
+function getBoardPointFromClient(clientX, clientY) {
+  const boardPoint = getSvgPointFromClient(clientX, clientY);
   const center = { x: 410, y: 310 };
   const scaled = {
     x: (boardPoint.x - center.x - viewOffset.x) / viewScale,
@@ -595,6 +806,32 @@ function getBoardPoint(event) {
     x: unrotated.x + center.x,
     y: unrotated.y + center.y,
   };
+}
+
+function getVisibleSpawnPoint() {
+  const rect = board.getBoundingClientRect();
+  const bounds = getWorkspaceBounds();
+  const clientPoints = [
+    [0.5, 0.5],
+    [0.35, 0.5], [0.65, 0.5], [0.5, 0.35], [0.5, 0.65],
+    [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75],
+  ];
+
+  const visiblePoints = clientPoints.map(([xRatio, yRatio]) => (
+    getBoardPointFromClient(rect.left + rect.width * xRatio, rect.top + rect.height * yRatio)
+  )).filter((point) => (
+    point.x >= bounds.minX
+    && point.x <= bounds.maxX
+    && point.y >= bounds.minY
+    && point.y <= bounds.maxY
+    && (activeMode !== "decorate" || isPointInsideDecorativeArea(point))
+  ));
+
+  if (visiblePoints.length) return visiblePoints[0];
+
+  viewOffset = { x: 0, y: 0 };
+  applyViewportTransform();
+  return { x: 410, y: 310 };
 }
 
 function applyViewportTransform() {
@@ -618,9 +855,9 @@ function rotateView() {
 function updateGroupMoveButton() {
   if (activeMode === "decorate" && decorateComplete) groupMoveEnabled = false;
   groupMoveButton.classList.toggle("active", groupMoveEnabled);
-  groupMoveButton.textContent = groupMoveEnabled ? "묶음 이동 해제" : "묶음 이동";
-  groupMoveButton.title = groupMoveEnabled ? "묶음 이동 끄기" : "붙어있는 도형 함께 옮기기";
+  groupMoveButton.title = groupMoveEnabled ? "묶음 이동 켜짐: 눌러서 끄기" : "묶음 이동 꺼짐: 눌러서 켜기";
   groupMoveButton.setAttribute("aria-pressed", groupMoveEnabled ? "true" : "false");
+  groupMoveButton.setAttribute("aria-label", `묶음 이동 ${groupMoveEnabled ? "켜짐" : "꺼짐"}`);
   groupMoveButton.disabled = activeMode === "decorate" && decorateComplete;
 }
 
@@ -706,8 +943,35 @@ function showGuideStep(index) {
 }
 
 function startGuide() {
-  if (!guideOverlay || hasSeenGuide()) return;
+  if (
+    !guideOverlay
+    || hasSeenGuide()
+    || (entryOverlay && !entryOverlay.hidden)
+    || (orientationOverlay && !orientationOverlay.hidden)
+  ) return;
   showGuideStep(0);
+}
+
+function shouldShowOrientationNotice() {
+  const portrait = window.matchMedia("(orientation: portrait)").matches;
+  const touchDevice = window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
+  const screenWidth = Math.min(
+    window.screen?.width || window.innerWidth,
+    window.screen?.height || window.innerHeight
+  );
+  return portrait && touchDevice && (screenWidth <= 1024 || window.innerWidth <= 1024);
+}
+
+function updateOrientationNotice() {
+  if (!orientationOverlay) return;
+  const wasVisible = !orientationOverlay.hidden;
+  const isVisible = shouldShowOrientationNotice();
+  orientationOverlay.hidden = !isVisible;
+  document.body.classList.toggle("orientation-blocked", isVisible);
+
+  if (wasVisible && !isVisible) {
+    setTimeout(startGuide, 250);
+  }
 }
 
 function showNextGuideStep() {
@@ -733,6 +997,66 @@ function writeJsonStorage(key, value) {
   } catch {
     window.alert("이 기기에는 저장할 수 없어요. 브라우저 저장 공간을 확인해 주세요.");
   }
+}
+
+function getEntryChoice() {
+  try {
+    return localStorage.getItem(ENTRY_CHOICE_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function setEntryChoice(choice) {
+  try {
+    localStorage.setItem(ENTRY_CHOICE_STORAGE_KEY, choice);
+  } catch {
+    // Entry selection still works for the current visit if storage is blocked.
+  }
+}
+
+function hideEntryOverlay() {
+  if (!entryOverlay) return;
+  entryOverlay.hidden = true;
+  document.body.classList.remove("entry-open");
+  setTimeout(startGuide, 250);
+}
+
+function showEntryChoices() {
+  if (!entryOverlay) return;
+  entryTitle.textContent = "어떻게 시작할까요?";
+  entryDescription.textContent = "로그인하면 같은 반 친구들과 작품을 나눌 수 있어요.";
+  entryChoices.hidden = false;
+  entryLoginForm.hidden = true;
+  entryLoginError.hidden = true;
+  entryOverlay.hidden = false;
+  document.body.classList.add("entry-open");
+}
+
+function showEntryLogin() {
+  if (!entryOverlay) return;
+  entryTitle.textContent = "반 친구들과 시작해요";
+  entryDescription.textContent = "처음 입력한 이름과 비밀번호로 계정이 만들어져요.";
+  entryChoices.hidden = true;
+  entryLoginForm.hidden = false;
+  entryLoginError.hidden = true;
+  entryOverlay.hidden = false;
+  document.body.classList.add("entry-open");
+  requestAnimationFrame(() => userNameInput?.focus());
+}
+
+function enterAsGuest() {
+  setEntryChoice("guest");
+  hideEntryOverlay();
+  updateAccountUi();
+}
+
+function initializeEntryScreen() {
+  if (!entryOverlay || currentUser?.name || getEntryChoice()) {
+    hideEntryOverlay();
+    return;
+  }
+  showEntryChoices();
 }
 
 function normalizeUserName(name) {
@@ -793,6 +1117,7 @@ async function clearSession() {
   } catch {
     // Ignore storage cleanup failures.
   }
+  setEntryChoice("guest");
   updateAccountUi();
   renderCommunityPosts();
 }
@@ -809,8 +1134,8 @@ function restoreSession() {
 function updateAccountUi() {
   if (!accountStatus) return;
   const signedIn = Boolean(currentUser?.name);
-  accountStatus.textContent = signedIn ? `${currentUser.name} · ${currentUser.classCode || DEFAULT_CLASS_CODE}` : "손님";
-  loginFields.hidden = signedIn;
+  accountStatus.textContent = signedIn ? `${currentUser.name} · ${currentUser.classCode || DEFAULT_CLASS_CODE}` : "손님 모드";
+  openLoginButton.hidden = signedIn;
   logoutButton.hidden = !signedIn;
 }
 
@@ -884,11 +1209,17 @@ async function authenticateUser(name, password, classCode) {
 }
 
 async function signIn() {
+  if (loginButton) loginButton.disabled = true;
+  if (entryLoginError) entryLoginError.hidden = true;
   const classCode = normalizeClassCode(classCodeInput?.value);
   const name = normalizeUserName(userNameInput.value);
   const password = passwordInput.value.trim();
   if (!classCode || !name || !password) {
-    window.alert("반 코드, 이름, 비밀번호를 모두 입력해 주세요.");
+    if (entryLoginError) {
+      entryLoginError.textContent = "반 코드, 이름, 비밀번호를 모두 입력해 주세요.";
+      entryLoginError.hidden = false;
+    }
+    if (loginButton) loginButton.disabled = false;
     return;
   }
 
@@ -896,8 +1227,15 @@ async function signIn() {
     const user = await authenticateUser(name, password, classCode);
     passwordInput.value = "";
     setSession(user);
+    setEntryChoice("login");
+    hideEntryOverlay();
   } catch (error) {
-    window.alert(error.message || "입장하지 못했습니다.");
+    if (entryLoginError) {
+      entryLoginError.textContent = error.message || "입장하지 못했습니다.";
+      entryLoginError.hidden = false;
+    }
+  } finally {
+    if (loginButton) loginButton.disabled = false;
   }
 }
 
@@ -1001,13 +1339,34 @@ async function publishCurrentBoard() {
     return;
   }
 
+  shareButton.disabled = true;
+  shareButton.textContent = "올리는 중";
   try {
     await saveCommunityPost(await createBoardPost());
-    communityPanel.hidden = false;
-    renderCommunityPosts();
+    showShareSuccessDialog();
   } catch (error) {
     window.alert(error.message || "공유하지 못했습니다.");
+  } finally {
+    shareButton.disabled = false;
+    shareButton.textContent = "공유";
   }
+}
+
+function showShareSuccessDialog() {
+  shareSuccessOverlay.hidden = false;
+  shareSuccessYesButton.focus();
+}
+
+function closeShareSuccessDialog() {
+  shareSuccessOverlay.hidden = true;
+  shareButton.focus();
+}
+
+async function openClassCommunityAfterShare() {
+  shareSuccessOverlay.hidden = true;
+  communityPanel.hidden = false;
+  await renderCommunityPosts();
+  closeCommunityButton.focus();
 }
 
 async function loadCommunityPost(postId) {
@@ -1123,10 +1482,12 @@ function startPaletteDrag(event, color) {
   if (activeMode === "decorate" && decorateComplete) return;
   event.preventDefault();
   const before = captureState();
+  const visiblePoint = getVisibleSpawnPoint();
   const position = activeMode === "decorate"
-    ? getDecorativeSpawnPoint()
-    : keepInsideBoard(getBoardPoint(event));
+    ? getDecorativeSpawnPoint(visiblePoint)
+    : keepInsideBoard(visiblePoint);
   const tile = createTile(selectedShape, position, color);
+  const pointerPoint = getBoardPoint(event);
   tile.group.classList.add("dragging");
   dragState = {
     mode: "move",
@@ -1136,7 +1497,8 @@ function startPaletteDrag(event, color) {
       tile,
       position: { ...tile.position },
     }],
-    offset: { x: 0, y: 0 },
+    offset: { x: pointerPoint.x - position.x, y: pointerPoint.y - position.y },
+    fromPalette: true,
     before,
     startClient: { x: event.clientX, y: event.clientY },
     longPressTimer: null,
@@ -1144,7 +1506,7 @@ function startPaletteDrag(event, color) {
   beginGlobalDrag(event.pointerId);
 }
 
-function getDecorativeSpawnPoint() {
+function getDecorativeSpawnPoint(center = { x: 410, y: 310 }) {
   const offsets = [
     { x: 0, y: 0 },
     { x: -54, y: 0 },
@@ -1156,8 +1518,13 @@ function getDecorativeSpawnPoint() {
     { x: -54, y: 54 },
     { x: 54, y: 54 },
   ];
-  const offset = offsets[tiles.length % offsets.length];
-  return { x: 410 + offset.x, y: 310 + offset.y };
+  const startIndex = tiles.length % offsets.length;
+  for (let index = 0; index < offsets.length; index += 1) {
+    const offset = offsets[(startIndex + index) % offsets.length];
+    const point = { x: center.x + offset.x, y: center.y + offset.y };
+    if (isPointInsideDecorativeArea(point)) return point;
+  }
+  return { x: 410, y: 310 };
 }
 
 function releaseTemplateSlot(tile) {
@@ -1258,6 +1625,17 @@ function moveDrag(event) {
 
   const point = getBoardPoint(event);
 
+  if (dragState.mode === "move" && dragState.fromPalette) {
+    const boardRect = board.getBoundingClientRect();
+    if (
+      event.clientX >= boardRect.left && event.clientX <= boardRect.right
+      && event.clientY >= boardRect.top && event.clientY <= boardRect.bottom
+    ) {
+      dragState.offset = { x: 0, y: 0 };
+      dragState.fromPalette = false;
+    }
+  }
+
   if (dragState.mode === "rotate") {
     const angle = toDegrees(Math.atan2(point.y - dragState.tile.position.y, point.x - dragState.tile.position.x));
     dragState.tile.rotation = dragState.startRotation + angle - dragState.startAngle;
@@ -1337,7 +1715,9 @@ function endDrag(event) {
     if (templateSnap) {
       applyTemplateSnap(tile, templateSnap);
     } else if (edgeSnap) {
-      tile.position = edgeSnap;
+      tile.position = edgeSnap.position;
+      tile.rotation = edgeSnap.rotation;
+      tile.slotId = null;
       tile.group.classList.add("snapped");
       window.setTimeout(() => tile.group.classList.remove("snapped"), 260);
     } else if (!isMostlyInside(tile)) {
@@ -1402,6 +1782,7 @@ function findTemplateSnap(tile) {
 
 function applyTemplateSnap(tile, slot) {
   tile.position = { x: slot.x, y: slot.y };
+  tile.rotation = slot.rotation;
   tile.slotId = slot.id;
   tile.group.classList.add("template-snapped");
   window.setTimeout(() => tile.group.classList.remove("template-snapped"), 360);
@@ -1522,6 +1903,16 @@ function polygonsOverlap(pointsA, pointsB) {
 
 function tileOverlapsOthers(tile) {
   const points = worldPoints(tile);
+  const bounds = polygonBounds(points);
+  return tiles.some((other) => {
+    if (other === tile) return false;
+    const otherPoints = worldPoints(other);
+    return boundsOverlap(bounds, polygonBounds(otherPoints)) && polygonsOverlap(points, otherPoints);
+  });
+}
+
+function tileOverlapsOthersAt(tile, position, rotation) {
+  const points = worldPoints(tile, position, rotation);
   const bounds = polygonBounds(points);
   return tiles.some((other) => {
     if (other === tile) return false;
@@ -1715,40 +2106,58 @@ function angleDifference(a, b) {
   return Math.min(diff, Math.abs(Math.PI - diff));
 }
 
+function exactEdgeSnapCandidate(movingTile, movingIndex, movingEdge, targetEdge) {
+  return window.TessellationGeometry.computeExactEdgeSnap({
+    basePoints: basePoints(movingTile.shape),
+    movingEdge,
+    movingIndex,
+    movingRotation: movingTile.rotation,
+    targetEdge,
+    toleranceDegrees: SNAP_ROTATION_TOLERANCE,
+  });
+}
+
 function findSnap(movingTile) {
   let best = null;
   const movingEdges = edgesFor(movingTile);
   const otherTiles = tiles.filter((tile) => tile !== movingTile);
 
-  for (const movingEdge of movingEdges) {
+  for (let movingIndex = 0; movingIndex < movingEdges.length; movingIndex += 1) {
+    const movingEdge = movingEdges[movingIndex];
     for (const otherTile of otherTiles) {
       for (const targetEdge of edgesFor(otherTile)) {
-        const directionGap = angleDifference(movingEdge.angle, targetEdge.angle);
-        if (directionGap > 0.16) continue;
-
-        const dx = targetEdge.midpoint.x - movingEdge.midpoint.x;
-        const dy = targetEdge.midpoint.y - movingEdge.midpoint.y;
-        const distance = Math.hypot(dx, dy);
+        const candidate = exactEdgeSnapCandidate(movingTile, movingIndex, movingEdge, targetEdge);
+        if (!candidate) continue;
+        const candidatePosition = candidate.position;
+        const candidateRotation = candidate.rotation;
+        const distance = Math.hypot(
+          candidatePosition.x - movingTile.position.x,
+          candidatePosition.y - movingTile.position.y,
+        );
         if (distance > SNAP_DISTANCE) continue;
 
-        const candidatePosition = {
-          x: movingTile.position.x + dx,
-          y: movingTile.position.y + dy,
-        };
         const centerDistance = Math.hypot(
           candidatePosition.x - otherTile.position.x,
           candidatePosition.y - otherTile.position.y,
         );
         if (centerDistance < SIDE * 0.45) continue;
+        if (tileOverlapsOthersAt(movingTile, candidatePosition, candidateRotation)) continue;
+        if (candidate.endpointError > 0.01) continue;
 
-        if (!best || distance < best.distance) {
-          best = { distance, position: candidatePosition };
+        const score = distance + Math.abs(candidate.correctionDegrees) * 0.35;
+
+        if (!best || score < best.score) {
+          best = {
+            score,
+            position: candidatePosition,
+            rotation: normalizeRotation(candidateRotation),
+          };
         }
       }
     }
   }
 
-  return best ? keepInsideBoard(best.position) : null;
+  return best;
 }
 
 function updateStats() {
@@ -2084,15 +2493,18 @@ downloadButton.addEventListener("click", downloadPng);
 groupMoveButton.addEventListener("click", toggleGroupMove);
 completeButton.addEventListener("click", toggleDecorateComplete);
 board.addEventListener("pointerdown", startPanDrag);
-loginButton?.addEventListener("click", signIn);
+openLoginButton?.addEventListener("click", showEntryLogin);
 logoutButton?.addEventListener("click", clearSession);
-passwordInput?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") signIn();
-});
-classCodeInput?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") signIn();
+chooseLoginButton?.addEventListener("click", showEntryLogin);
+guestEntryButton?.addEventListener("click", enterAsGuest);
+entryBackButton?.addEventListener("click", showEntryChoices);
+entryLoginForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  signIn();
 });
 shareButton?.addEventListener("click", publishCurrentBoard);
+shareSuccessYesButton?.addEventListener("click", openClassCommunityAfterShare);
+shareSuccessNoButton?.addEventListener("click", closeShareSuccessDialog);
 closeCommunityButton?.addEventListener("click", () => {
   communityPanel.hidden = true;
 });
@@ -2101,7 +2513,11 @@ document.querySelector("#zoomOutButton").addEventListener("click", () => changeZ
 document.querySelector("#zoomInButton").addEventListener("click", () => changeZoom(0.15));
 guideNextButton?.addEventListener("click", showNextGuideStep);
 guideSkipButton?.addEventListener("click", finishGuide);
-window.addEventListener("resize", positionGuide);
+window.addEventListener("resize", () => {
+  positionGuide();
+  updateOrientationNotice();
+});
+window.addEventListener("orientationchange", updateOrientationNotice);
 window.addEventListener("tessellation-cloud-ready", async () => {
   const ready = await getCloudBridge()?.getReadyState?.();
   if (classCodeInput && !classCodeInput.value) {
@@ -2117,11 +2533,13 @@ updateStats();
 updateUndoButton();
 updateGroupMoveButton();
 restoreSession();
+initializeEntryScreen();
+updateOrientationNotice();
 renderCommunityPosts();
 
 const initialParams = new URLSearchParams(window.location.search);
 const initialTemplate = initialParams.get("template");
-if (initialTemplate && templates[initialTemplate]) {
+if (initialTemplate && archimedeanConfigs[initialTemplate]) {
   activeTemplateId = initialTemplate;
   templateButtons.forEach((button) => {
     button.classList.toggle("active", button.dataset.template === initialTemplate);

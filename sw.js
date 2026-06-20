@@ -1,13 +1,16 @@
-const CACHE_NAME = "tessellation-playground-v20260620-firebase";
+const CACHE_NAME = "tessellation-playground-v20260620-new-icon-v2";
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=20260618-pwa",
-  "./app.js?v=20260619-firebase",
+  "./styles.css?v=20260620-share-success-v2",
+  "./app.js?v=20260620-share-success-v2",
+  "./geometry-core.js?v=20260620-share-success-v2",
   "./firebase-client.js?v=20260620-firebase",
   "./manifest.webmanifest",
-  "./assets/icons/icon.svg",
+  "./assets/icons/favicon.ico?v=20260620-new-icon-v2",
+  "./assets/icons/favicon-32.png?v=20260620-new-icon-v2",
+  "./assets/icons/icon-180.png?v=20260620-new-icon-v2",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/fonts/A2Z-Regular.woff2",

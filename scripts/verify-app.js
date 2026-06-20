@@ -53,12 +53,16 @@ async function main() {
     "sw.js",
     "vercel.json",
     "firebase-client.js",
+    "geometry-core.js",
+    "scripts/verify-geometry.js",
     "cloud-config.js",
     "firebase-config.example.js",
     ".firebaserc",
     "firebase.json",
     "firestore.rules",
-    "assets/icons/icon.svg",
+    "assets/icons/favicon.ico",
+    "assets/icons/favicon-32.png",
+    "assets/icons/icon-180.png",
     "assets/icons/icon-192.png",
     "assets/icons/icon-512.png",
     "api/auth.js",
@@ -78,10 +82,31 @@ async function main() {
   assert(html.includes("userNameInput"), "login UI is missing");
   assert(html.includes("classCodeInput"), "class code UI is missing");
   assert(html.includes("firebase-client.js"), "Firebase client script is missing");
+  assert(html.includes("geometry-core.js"), "geometry core script is missing");
+  assert(html.includes("entryOverlay"), "entry choice screen is missing");
+  assert(html.includes("guestEntryButton"), "guest entry choice is missing");
+  assert(html.includes("orientationOverlay"), "portrait orientation notice is missing");
+  assert(html.includes("group-move-switch"), "group move toggle indicator is missing");
+  assert(html.includes("shareSuccessOverlay"), "share success dialog is missing");
+  assert(html.includes("우리 반 게시판"), "class community title is missing");
 
   const app = read("app.js");
   assert(app.includes("tessellationCloud"), "app.js must use the Firebase bridge");
   assert(app.includes("createWebpThumbnailDataUrl"), "WebP thumbnail generation is missing");
+  assert(app.includes("initializeEntryScreen"), "entry screen initialization is missing");
+  assert(app.includes("expandArchimedeanTemplate"), "expanded Archimedean template generation is missing");
+  assert(app.includes("computeExactEdgeSnap"), "exact edge snapping is missing");
+  assert(app.includes("updateOrientationNotice"), "orientation notice behavior is missing");
+  assert(app.includes("buildSnubSquarePolygons"), "exact snub-square template generation is missing");
+  assert(app.includes("getVisibleSpawnPoint"), "visible viewport spawning is missing");
+  assert(app.includes("templateEdgeKey"), "template edges must be deduplicated");
+  assert(
+    app.includes('const palette = ["#ffffff", "#ffd166", "#f76f53", "#06a77d", "#4d96ff"]'),
+    "palette colors or order are wrong",
+  );
+  assert(app.includes('colorInput.type = "color"'), "custom color picker is missing");
+  assert(app.includes("묶음 이동 ${groupMoveEnabled ?"), "group move state label is missing");
+  assert(app.includes("openClassCommunityAfterShare"), "share success navigation is missing");
 
   const sw = read("sw.js");
   assert(sw.includes("CACHE_NAME"), "service worker cache is missing");

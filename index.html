@@ -7,10 +7,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="테셀레이션" />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./assets/icons/icon.svg" type="image/svg+xml" />
-    <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
+    <link rel="icon" href="./assets/icons/favicon.ico?v=20260620-new-icon-v2" sizes="any" />
+    <link rel="icon" href="./assets/icons/favicon-32.png?v=20260620-new-icon-v2" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="./assets/icons/icon-180.png?v=20260620-new-icon-v2" sizes="180x180" />
     <title>테셀레이션 놀이터</title>
-    <link rel="stylesheet" href="./styles.css?v=20260618-pwa" />
+    <link rel="stylesheet" href="./styles.css?v=20260620-share-success-v2" />
   </head>
   <body>
     <main class="app-shell">
@@ -26,12 +27,7 @@
           </div>
           <section class="account-panel" aria-label="사용자 계정">
             <strong id="accountStatus">손님</strong>
-            <div id="loginFields" class="account-fields">
-              <input id="classCodeInput" type="text" maxlength="24" autocomplete="organization" placeholder="반 코드" aria-label="반 코드" />
-              <input id="userNameInput" type="text" maxlength="12" autocomplete="username" placeholder="이름" aria-label="이름" />
-              <input id="passwordInput" type="password" maxlength="24" autocomplete="current-password" placeholder="비밀번호" aria-label="비밀번호" />
-              <button id="loginButton" class="account-button" type="button">입장</button>
-            </div>
+            <button id="openLoginButton" class="account-button" type="button">로그인</button>
             <button id="logoutButton" class="account-button ghost" type="button" hidden>나가기</button>
           </section>
         </div>
@@ -153,7 +149,10 @@
             <div class="board-actions">
               <span id="templateStatus" class="template-status" hidden></span>
               <button id="completeButton" class="command-button complete-button" hidden>완성</button>
-              <button id="groupMoveButton" class="command-button group-move-button" type="button" title="묶어서 옮기기" aria-pressed="false">묶음 이동</button>
+              <button id="groupMoveButton" class="command-button group-move-button" type="button" title="묶어서 옮기기" aria-pressed="false">
+                <span class="group-move-label">묶음 이동</span>
+                <span class="group-move-switch" aria-hidden="true"><span class="group-move-knob"></span></span>
+              </button>
               <button id="shareButton" class="command-button share-button" type="button" title="공유게시판에 올리기">공유</button>
               <button id="downloadButton" class="command-button save-button" title="PNG로 저장">저장</button>
               <div class="viewport-controls" aria-label="화면 보기 조절">
@@ -174,11 +173,11 @@
               <g id="objectLayer"></g>
             </g>
           </svg>
-          <section id="communityPanel" class="community-panel" aria-label="공유게시판" hidden>
+          <section id="communityPanel" class="community-panel" aria-label="우리 반 게시판" hidden>
             <div class="community-header">
               <div>
-                <h2>공유게시판</h2>
-                <p id="communityHint">입장한 친구들이 만든 보드를 이 기기에서 함께 볼 수 있어요.</p>
+                <h2>우리 반 게시판</h2>
+                <p id="communityHint">같은 반 친구들이 만든 작품을 함께 볼 수 있어요.</p>
               </div>
               <button id="closeCommunityButton" class="command-button ghost" type="button">닫기</button>
             </div>
@@ -187,6 +186,75 @@
         </section>
       </section>
     </main>
+
+    <div id="orientationOverlay" class="orientation-overlay" role="dialog" aria-modal="true" aria-labelledby="orientationTitle" hidden>
+      <section class="orientation-dialog">
+        <div class="rotate-device-icon" aria-hidden="true">
+          <span class="rotate-device-screen"></span>
+          <span class="rotate-device-arrow">↻</span>
+        </div>
+        <h2 id="orientationTitle">기기를 가로로 돌려 주세요</h2>
+        <p>테셀레이션은 넓은 가로 화면에서 더 편하게 만들 수 있어요.</p>
+      </section>
+    </div>
+
+    <div id="entryOverlay" class="entry-overlay" role="dialog" aria-modal="true" aria-labelledby="entryTitle" hidden>
+      <section class="entry-dialog">
+        <div class="entry-visual" aria-hidden="true">
+          <span class="entry-shape entry-triangle"></span>
+          <span class="entry-shape entry-square"></span>
+          <span class="entry-shape entry-hexagon"></span>
+          <span class="entry-shape entry-octagon"></span>
+          <span class="entry-shape entry-small-square"></span>
+        </div>
+        <p class="entry-eyebrow">테셀레이션 놀이터</p>
+        <h2 id="entryTitle">어떻게 시작할까요?</h2>
+        <p class="entry-description">로그인하면 같은 반 친구들과 작품을 나눌 수 있어요.</p>
+
+        <div id="entryChoices" class="entry-choices">
+          <button id="chooseLoginButton" class="entry-choice entry-choice-login" type="button">
+            <strong>로그인해서 시작</strong>
+            <span>내 작품을 저장하고 친구 작품도 보기</span>
+          </button>
+          <button id="guestEntryButton" class="entry-choice entry-choice-guest" type="button">
+            <strong>로그인 없이 체험</strong>
+            <span>바로 도형을 붙이며 자유롭게 만들기</span>
+          </button>
+        </div>
+
+        <form id="entryLoginForm" class="entry-login-form" hidden>
+          <label>
+            <span>반 코드</span>
+            <input id="classCodeInput" type="text" maxlength="24" autocomplete="organization" value="class-1" />
+          </label>
+          <label>
+            <span>이름</span>
+            <input id="userNameInput" type="text" maxlength="12" autocomplete="username" />
+          </label>
+          <label>
+            <span>비밀번호</span>
+            <input id="passwordInput" type="password" maxlength="24" autocomplete="current-password" />
+          </label>
+          <p id="entryLoginError" class="entry-login-error" role="alert" hidden></p>
+          <div class="entry-login-actions">
+            <button id="entryBackButton" class="entry-back-button" type="button">뒤로</button>
+            <button id="loginButton" class="entry-submit-button" type="submit">입장</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="shareSuccessOverlay" class="share-success-overlay" role="dialog" aria-modal="true" aria-labelledby="shareSuccessTitle" hidden>
+      <section class="share-success-dialog">
+        <span class="share-success-mark" aria-hidden="true">✓</span>
+        <h2 id="shareSuccessTitle">게시판 업로드가 성공했어요!</h2>
+        <p>우리 반 친구들의 작품을 보러 갈까요?</p>
+        <div class="share-success-actions">
+          <button id="shareSuccessNoButton" class="command-button ghost" type="button">아니오</button>
+          <button id="shareSuccessYesButton" class="command-button" type="button">예</button>
+        </div>
+      </section>
+    </div>
 
     <div id="guideOverlay" class="guide-overlay" hidden>
       <div id="guideSpotlight" class="guide-spotlight"></div>
@@ -200,6 +268,7 @@
     </div>
 
     <script type="module" src="./firebase-client.js?v=20260620-firebase"></script>
-    <script src="./app.js?v=20260619-firebase"></script>
+    <script src="./geometry-core.js?v=20260620-share-success-v2"></script>
+    <script src="./app.js?v=20260620-share-success-v2"></script>
   </body>
 </html>

@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "check": "node --check app.js && node --check sw.js && node --check firebase-client.js && node --check cloud-config.js && node --check api/_storage.js && node --check api/auth.js && node --check api/posts.js && node scripts/verify-app.js",
+    "check": "node --check app.js && node --check geometry-core.js && node --check sw.js && node --check firebase-client.js && node --check cloud-config.js && node --check api/_storage.js && node --check api/auth.js && node --check api/posts.js && node scripts/verify-geometry.js && node scripts/verify-app.js",
     "test:firebase-live": "node scripts/test-firebase-live.js",
     "serve": "python -m http.server 5173 --bind 127.0.0.1"
   }
