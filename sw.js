@@ -1,10 +1,11 @@
-const CACHE_NAME = "tessellation-playground-v20260618";
+const CACHE_NAME = "tessellation-playground-v20260620-firebase";
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./styles.css?v=20260618-pwa",
-  "./app.js?v=20260618-pwa",
+  "./app.js?v=20260619-firebase",
+  "./firebase-client.js?v=20260620-firebase",
   "./manifest.webmanifest",
   "./assets/icons/icon.svg",
   "./assets/icons/icon-192.png",
@@ -40,6 +41,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
   const url = new URL(request.url);
   if (url.pathname.includes("/api/")) return;
+  if (url.pathname.endsWith("/cloud-config.js")) return;
 
   event.respondWith(
     caches.match(request)

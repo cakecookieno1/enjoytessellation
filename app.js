@@ -22,6 +22,7 @@ const downloadButton = document.querySelector("#downloadButton");
 const groupMoveButton = document.querySelector("#groupMoveButton");
 const accountStatus = document.querySelector("#accountStatus");
 const loginFields = document.querySelector("#loginFields");
+const classCodeInput = document.querySelector("#classCodeInput");
 const userNameInput = document.querySelector("#userNameInput");
 const passwordInput = document.querySelector("#passwordInput");
 const loginButton = document.querySelector("#loginButton");
@@ -58,6 +59,7 @@ const GUIDE_STORAGE_KEY = "tessellationGuideSeen";
 const ACCOUNT_STORAGE_KEY = "tessellationAccounts";
 const SESSION_STORAGE_KEY = "tessellationSession";
 const COMMUNITY_STORAGE_KEY = "tessellationCommunityPosts";
+const DEFAULT_CLASS_CODE = "class-1";
 const palette = ["#f76f53", "#ffd166", "#06a77d", "#4d96ff", "#8e5cf7", "#ffffff"];
 
 const guideSteps = [
@@ -737,6 +739,24 @@ function normalizeUserName(name) {
   return name.trim().replace(/\s+/g, " ").slice(0, 12);
 }
 
+function normalizeClassCode(classCode) {
+  return String(classCode || DEFAULT_CLASS_CODE).trim().replace(/\s+/g, "-").toLowerCase().slice(0, 24);
+}
+
+function getCloudBridge() {
+  return window.tessellationCloud || null;
+}
+
+async function getCloudIfAvailable() {
+  const cloud = getCloudBridge();
+  if (!cloud?.isAvailable) return null;
+  try {
+    return await cloud.isAvailable() ? cloud : null;
+  } catch {
+    return null;
+  }
+}
+
 function hashPassword(name, password) {
   const source = `${name}:${password}`;
   let hash = 5381;
@@ -752,13 +772,21 @@ function getLocalAccounts() {
 }
 
 function setSession(user) {
-  currentUser = user;
-  writeJsonStorage(SESSION_STORAGE_KEY, user);
+  currentUser = {
+    ...user,
+    classCode: normalizeClassCode(user.classCode),
+  };
+  writeJsonStorage(SESSION_STORAGE_KEY, currentUser);
   updateAccountUi();
   renderCommunityPosts();
 }
 
-function clearSession() {
+async function clearSession() {
+  try {
+    await getCloudBridge()?.signOut?.();
+  } catch {
+    // Local sign-out should still continue when Firebase is unavailable.
+  }
   currentUser = null;
   try {
     localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -771,14 +799,17 @@ function clearSession() {
 
 function restoreSession() {
   const saved = readJsonStorage(SESSION_STORAGE_KEY, null);
-  if (saved?.name) currentUser = saved;
+  if (saved?.name) currentUser = { ...saved, classCode: normalizeClassCode(saved.classCode) };
+  if (classCodeInput && !classCodeInput.value) {
+    classCodeInput.value = currentUser?.classCode || DEFAULT_CLASS_CODE;
+  }
   updateAccountUi();
 }
 
 function updateAccountUi() {
   if (!accountStatus) return;
   const signedIn = Boolean(currentUser?.name);
-  accountStatus.textContent = signedIn ? `${currentUser.name} 입장 중` : "손님";
+  accountStatus.textContent = signedIn ? `${currentUser.name} · ${currentUser.classCode || DEFAULT_CLASS_CODE}` : "손님";
   loginFields.hidden = signedIn;
   logoutButton.hidden = !signedIn;
 }
@@ -815,43 +846,54 @@ async function apiRequest(path, options = {}) {
   return response.status === 204 ? null : response.json();
 }
 
-async function authenticateUser(name, password) {
+async function authenticateUser(name, password, classCode) {
+  const cloud = await getCloudIfAvailable();
+  if (cloud) {
+    return cloud.signIn({ name, password, classCode });
+  }
+
   try {
     const data = await apiRequest("./api/auth", {
       method: "POST",
-      body: JSON.stringify({ name, password }),
+      body: JSON.stringify({ name, password, classCode }),
     });
-    return data.user;
+    return {
+      ...data.user,
+      classCode,
+    };
   } catch (error) {
     if (error.status && error.status !== 404) throw error;
     const accounts = getLocalAccounts();
-    const passwordHash = hashPassword(name, password);
-    const existing = accounts[name];
+    const accountKey = `${classCode}:${name}`;
+    const passwordHash = hashPassword(accountKey, password);
+    const existing = accounts[accountKey];
 
     if (existing && existing.passwordHash !== passwordHash) {
       throw new Error("비밀번호가 맞지 않아요.");
     }
 
-    accounts[name] = existing || {
+    accounts[accountKey] = existing || {
       name,
+      classCode,
       passwordHash,
       createdAt: new Date().toISOString(),
     };
     writeJsonStorage(ACCOUNT_STORAGE_KEY, accounts);
-    return { name };
+    return { name, classCode };
   }
 }
 
 async function signIn() {
+  const classCode = normalizeClassCode(classCodeInput?.value);
   const name = normalizeUserName(userNameInput.value);
   const password = passwordInput.value.trim();
-  if (!name || !password) {
-    window.alert("이름과 비밀번호를 모두 입력해 주세요.");
+  if (!classCode || !name || !password) {
+    window.alert("반 코드, 이름, 비밀번호를 모두 입력해 주세요.");
     return;
   }
 
   try {
-    const user = await authenticateUser(name, password);
+    const user = await authenticateUser(name, password, classCode);
     passwordInput.value = "";
     setSession(user);
   } catch (error) {
@@ -868,6 +910,11 @@ function saveLocalCommunityPosts(posts) {
 }
 
 async function getCommunityPosts() {
+  const cloud = await getCloudIfAvailable();
+  if (cloud && currentUser?.name) {
+    return cloud.listPosts(currentUser);
+  }
+
   try {
     const data = await apiRequest("./api/posts");
     return data.posts || [];
@@ -877,6 +924,11 @@ async function getCommunityPosts() {
 }
 
 async function saveCommunityPost(post) {
+  const cloud = await getCloudIfAvailable();
+  if (cloud) {
+    return cloud.savePost(post, currentUser);
+  }
+
   try {
     const data = await apiRequest("./api/posts", {
       method: "POST",
@@ -893,6 +945,12 @@ async function saveCommunityPost(post) {
 }
 
 async function removeCommunityPost(postId, author) {
+  const cloud = await getCloudIfAvailable();
+  if (cloud) {
+    await cloud.deletePost(postId, currentUser);
+    return;
+  }
+
   try {
     await apiRequest(`./api/posts?id=${encodeURIComponent(postId)}`, {
       method: "DELETE",
@@ -915,10 +973,12 @@ function formatPostTime(value) {
   });
 }
 
-function createBoardPost() {
+async function createBoardPost() {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     author: currentUser.name,
+    ownerUid: currentUser.uid || "",
+    classCode: currentUser.classCode || DEFAULT_CLASS_CODE,
     createdAt: new Date().toISOString(),
     mode: activeMode,
     templateId: activeTemplateId,
@@ -926,6 +986,7 @@ function createBoardPost() {
     objectScale,
     tileCount: tiles.length,
     tiles: captureState(),
+    thumbnailWebp: await createWebpThumbnailDataUrl(),
   };
 }
 
@@ -941,7 +1002,7 @@ async function publishCurrentBoard() {
   }
 
   try {
-    await saveCommunityPost(createBoardPost());
+    await saveCommunityPost(await createBoardPost());
     communityPanel.hidden = false;
     renderCommunityPosts();
   } catch (error) {
@@ -984,7 +1045,7 @@ async function loadCommunityPost(postId) {
     boardTitle.textContent = "같은 길이의 변으로 붙이기";
     boardHint.textContent = "빈 곳: 화면 이동 · 도형: 이동/회전";
   }
-  restoreState(post.tiles || []);
+  restoreState(post.tiles || post.designData?.tiles || []);
   renderDecorativeObject();
   updateShapeAvailability();
   updateStats();
@@ -993,7 +1054,10 @@ async function loadCommunityPost(postId) {
 async function deleteCommunityPost(postId) {
   const posts = await getCommunityPosts();
   const post = posts.find((item) => item.id === postId);
-  if (!post || post.author !== currentUser?.name) return;
+  const canDelete = post?.ownerUid && currentUser?.uid
+    ? post.ownerUid === currentUser.uid
+    : post?.author === currentUser?.name;
+  if (!post || !canDelete) return;
   try {
     await removeCommunityPost(postId, currentUser.name);
     renderCommunityPosts();
@@ -1023,6 +1087,14 @@ async function renderCommunityPosts() {
     const meta = document.createElement("span");
     meta.textContent = `${post.tileCount || 0}개 도형 · ${formatPostTime(post.createdAt)}`;
 
+    if (post.thumbnailWebp) {
+      const preview = document.createElement("img");
+      preview.src = post.thumbnailWebp;
+      preview.alt = `${post.author} 미리보기`;
+      preview.loading = "lazy";
+      card.appendChild(preview);
+    }
+
     const actions = document.createElement("div");
     actions.className = "community-card-actions";
     const loadButton = document.createElement("button");
@@ -1031,7 +1103,10 @@ async function renderCommunityPosts() {
     loadButton.addEventListener("click", () => loadCommunityPost(post.id));
     actions.appendChild(loadButton);
 
-    if (post.author === currentUser?.name) {
+    const canDelete = post.ownerUid && currentUser?.uid
+      ? post.ownerUid === currentUser.uid
+      : post.author === currentUser?.name;
+    if (canDelete) {
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.textContent = "삭제";
@@ -1880,7 +1955,14 @@ function addExportStyles(clone) {
   clone.querySelector("defs")?.appendChild(style);
 }
 
-async function createPngBlob() {
+async function createBoardRasterBlob({
+  type = "image/png",
+  width = 1640,
+  height = 1240,
+  maxWidth = null,
+  maxHeight = null,
+  quality,
+} = {}) {
   const clone = board.cloneNode(true);
   clone.querySelector("#templateLayer")?.remove();
   clone.querySelector("#viewportLayer")?.setAttribute("transform", getExportTransform());
@@ -1906,18 +1988,52 @@ async function createPngBlob() {
     await image.decode();
 
     const canvas = document.createElement("canvas");
-    canvas.width = 1640;
-    canvas.height = 1240;
+    if (maxWidth && maxHeight) {
+      const scale = Math.min(maxWidth / 820, maxHeight / 620);
+      canvas.width = Math.max(1, Math.round(820 * scale));
+      canvas.height = Math.max(1, Math.round(620 * scale));
+    } else {
+      canvas.width = width;
+      canvas.height = height;
+    }
     const context = canvas.getContext("2d");
     context.fillStyle = "#fffdf8";
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-    const pngBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-    if (!pngBlob) throw new Error("PNG 변환에 실패했습니다.");
-    return pngBlob;
+    const outputBlob = await new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+    if (!outputBlob) throw new Error("이미지 변환에 실패했습니다.");
+    return outputBlob;
   } finally {
     URL.revokeObjectURL(svgUrl);
+  }
+}
+
+async function createPngBlob() {
+  return createBoardRasterBlob({ type: "image/png", width: 1640, height: 1240 });
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(reader.result));
+    reader.addEventListener("error", () => reject(reader.error));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function createWebpThumbnailDataUrl() {
+  try {
+    const blob = await createBoardRasterBlob({
+      type: "image/webp",
+      maxWidth: 480,
+      maxHeight: 320,
+      quality: 0.72,
+    });
+    return await blobToDataUrl(blob);
+  } catch (error) {
+    console.warn("WebP thumbnail failed:", error);
+    return "";
   }
 }
 
@@ -1973,6 +2089,9 @@ logoutButton?.addEventListener("click", clearSession);
 passwordInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") signIn();
 });
+classCodeInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") signIn();
+});
 shareButton?.addEventListener("click", publishCurrentBoard);
 closeCommunityButton?.addEventListener("click", () => {
   communityPanel.hidden = true;
@@ -1983,6 +2102,13 @@ document.querySelector("#zoomInButton").addEventListener("click", () => changeZo
 guideNextButton?.addEventListener("click", showNextGuideStep);
 guideSkipButton?.addEventListener("click", finishGuide);
 window.addEventListener("resize", positionGuide);
+window.addEventListener("tessellation-cloud-ready", async () => {
+  const ready = await getCloudBridge()?.getReadyState?.();
+  if (classCodeInput && !classCodeInput.value) {
+    classCodeInput.value = currentUser?.classCode || ready?.classCode || DEFAULT_CLASS_CODE;
+  }
+  renderCommunityPosts();
+});
 
 renderPalette();
 renderTemplate();

@@ -52,6 +52,12 @@ async function main() {
     "manifest.webmanifest",
     "sw.js",
     "vercel.json",
+    "firebase-client.js",
+    "cloud-config.js",
+    "firebase-config.example.js",
+    ".firebaserc",
+    "firebase.json",
+    "firestore.rules",
     "assets/icons/icon.svg",
     "assets/icons/icon-192.png",
     "assets/icons/icon-512.png",
@@ -70,10 +76,29 @@ async function main() {
   assert(html.includes("serviceWorker") || read("app.js").includes("serviceWorker"), "service worker registration is missing");
   assert(html.includes("shareButton"), "share button is missing");
   assert(html.includes("userNameInput"), "login UI is missing");
+  assert(html.includes("classCodeInput"), "class code UI is missing");
+  assert(html.includes("firebase-client.js"), "Firebase client script is missing");
+
+  const app = read("app.js");
+  assert(app.includes("tessellationCloud"), "app.js must use the Firebase bridge");
+  assert(app.includes("createWebpThumbnailDataUrl"), "WebP thumbnail generation is missing");
 
   const sw = read("sw.js");
   assert(sw.includes("CACHE_NAME"), "service worker cache is missing");
   assert(sw.includes("/api/"), "service worker must bypass API cache");
+  assert(sw.includes("firebase-client.js"), "service worker must cache Firebase bridge");
+  assert(sw.includes("cloud-config.js"), "service worker must bypass Firebase config cache");
+
+  const firebaseClient = read("firebase-client.js");
+  assert(firebaseClient.includes("firebase-auth.js"), "Firebase Auth SDK import is missing");
+  assert(firebaseClient.includes("firebase-firestore.js"), "Firestore SDK import is missing");
+  assert(firebaseClient.includes("classes"), "Firebase client must use class-scoped collections");
+
+  const firestoreRules = read("firestore.rules");
+  assert(firestoreRules.includes("match /classes/{classId}"), "Firestore class rules are missing");
+  assert(firestoreRules.includes("match /works/{workId}"), "Firestore class work rules are missing");
+  assert(firestoreRules.includes("thumbnailWebp.size() < 250000"), "Firestore thumbnail size limit is missing");
+  assert(firestoreRules.includes('request.resource.data.role == "student"'), "Firestore student role must be immutable");
 
   const auth = require(path.join(root, "api/auth"));
   const posts = require(path.join(root, "api/posts"));

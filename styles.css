@@ -180,7 +180,7 @@ h2 {
 .account-panel {
   display: grid;
   gap: 6px;
-  min-width: 224px;
+  min-width: 292px;
   padding: 8px;
   border: 2px solid var(--ink);
   border-radius: 8px;
@@ -200,7 +200,7 @@ h2 {
 
 .account-fields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 5px;
 }
 
@@ -739,6 +739,15 @@ input[type="range"] {
   font-weight: 700;
 }
 
+.community-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+}
+
 .community-card span {
   color: var(--muted);
   font-size: 0.74rem;
@@ -1110,7 +1119,7 @@ input[type="range"] {
   }
 
   .account-panel {
-    min-width: 198px;
+    min-width: 256px;
     padding: 7px;
   }
 
@@ -1358,7 +1367,7 @@ input[type="range"] {
   }
 
   .account-panel {
-    min-width: 188px;
+    min-width: 236px;
     padding: 6px;
   }
 

@@ -1,0 +1,97 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(classId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid));
+    }
+
+    function memberRole(classId) {
+      return get(/databases/$(database)/documents/classes/$(classId)/members/$(request.auth.uid)).data.role;
+    }
+
+    function isTeacher(classId) {
+      return isMember(classId) && memberRole(classId) == "teacher";
+    }
+
+    function validWork() {
+      return request.resource.data.keys().hasOnly([
+        "classCode",
+        "designData",
+        "mode",
+        "objectId",
+        "objectScale",
+        "ownerName",
+        "ownerUid",
+        "templateId",
+        "thumbnailWebp",
+        "tileCount",
+        "title",
+        "createdAt",
+        "updatedAt"
+      ])
+      && request.resource.data.ownerUid == request.auth.uid
+      && request.resource.data.tileCount is int
+      && request.resource.data.tileCount > 0
+      && request.resource.data.tileCount <= 500
+      && request.resource.data.designData is map
+      && request.resource.data.thumbnailWebp is string
+      && request.resource.data.thumbnailWebp.size() < 250000;
+    }
+
+    function validStudentMember(uid) {
+      return request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          "displayName",
+          "joinedAt",
+          "role"
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && request.resource.data.displayName.size() <= 12
+        && request.resource.data.role == "student";
+    }
+
+    match /users/{uid} {
+      allow read, create, update: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /classes/{classId} {
+      allow read: if isMember(classId);
+      allow create: if signedIn();
+      allow update: if isTeacher(classId)
+        || (
+          signedIn()
+          && resource.data.ownerUid == null
+          && request.resource.data.ownerUid == null
+          && request.resource.data.joinCodeLower == resource.data.joinCodeLower
+          && request.resource.data.archived == false
+        );
+      allow delete: if isTeacher(classId);
+
+      match /members/{uid} {
+        allow read: if isMember(classId);
+        allow create: if signedIn() && validStudentMember(uid);
+        allow update: if signedIn()
+          && validStudentMember(uid)
+          && request.resource.data.role == resource.data.role;
+        allow delete: if signedIn() && (request.auth.uid == uid || isTeacher(classId));
+      }
+
+      match /works/{workId} {
+        allow read: if isMember(classId);
+        allow create: if isMember(classId) && validWork();
+        allow update: if isMember(classId)
+          && resource.data.ownerUid == request.auth.uid
+          && validWork();
+        allow delete: if isMember(classId)
+          && (resource.data.ownerUid == request.auth.uid || isTeacher(classId));
+      }
+    }
+  }
+}

@@ -27,6 +27,7 @@
           <section class="account-panel" aria-label="사용자 계정">
             <strong id="accountStatus">손님</strong>
             <div id="loginFields" class="account-fields">
+              <input id="classCodeInput" type="text" maxlength="24" autocomplete="organization" placeholder="반 코드" aria-label="반 코드" />
               <input id="userNameInput" type="text" maxlength="12" autocomplete="username" placeholder="이름" aria-label="이름" />
               <input id="passwordInput" type="password" maxlength="24" autocomplete="current-password" placeholder="비밀번호" aria-label="비밀번호" />
               <button id="loginButton" class="account-button" type="button">입장</button>
@@ -198,6 +199,7 @@
       </div>
     </div>
 
-    <script src="./app.js?v=20260618-pwa"></script>
+    <script type="module" src="./firebase-client.js?v=20260620-firebase"></script>
+    <script src="./app.js?v=20260619-firebase"></script>
   </body>
 </html>
